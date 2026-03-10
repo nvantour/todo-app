@@ -1,0 +1,70 @@
+.task-list {
+  flex: 1;
+  padding: 24px 32px;
+  max-width: 720px;
+  overflow-y: auto;
+}
+
+.task-list-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.task-list-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.task-list-count {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  margin-top: 4px;
+}
+
+.task-list-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 8px 16px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.task-list-add:hover {
+  background: var(--color-primary-hover);
+}
+
+.task-list-content {
+  /* space for content */
+}
+
+.task-list-empty {
+  text-align: center;
+  padding: 48px 0;
+  color: var(--color-text-tertiary);
+}
+
+@media (max-width: 768px) {
+  .task-list {
+    padding: 16px;
+  }
+
+  .task-list-title {
+    font-size: 20px;
+  }
+
+  .task-list-add span {
+    display: none;
+  }
+}

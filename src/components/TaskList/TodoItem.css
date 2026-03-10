@@ -1,0 +1,95 @@
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-light);
+  transition: opacity 0.2s;
+}
+
+.todo-item--done {
+  opacity: 0.5;
+}
+
+.todo-item--done .todo-title {
+  text-decoration: line-through;
+}
+
+.todo-checkbox {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  transition: background 0.15s, border-color 0.15s;
+  padding: 0;
+}
+
+.todo-item--done .todo-checkbox {
+  background: var(--color-text-tertiary);
+  border-color: var(--color-text-tertiary);
+}
+
+.todo-checkbox:hover {
+  background: var(--color-hover);
+}
+
+.todo-content {
+  flex: 1;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.todo-title {
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.todo-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.todo-due,
+.todo-time {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.todo-due--overdue {
+  color: var(--color-danger);
+}
+
+.todo-due--today {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.todo-delete {
+  background: none;
+  border: none;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.todo-item:hover .todo-delete {
+  opacity: 1;
+}
+
+.todo-delete:hover {
+  color: var(--color-danger);
+}

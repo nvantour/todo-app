@@ -1,0 +1,179 @@
+import { useState, useMemo, useEffect } from 'react';
+import { HashRouter, Routes, Route, useParams } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { useTodos } from './hooks/useTodos';
+import { useCategories } from './hooks/useCategories';
+import LoginScreen from './components/Auth/LoginScreen';
+import Sidebar from './components/Sidebar/Sidebar';
+import Header from './components/Layout/Header';
+import TaskListView from './components/TaskList/TaskListView';
+import CategoryManager from './components/Categories/CategoryManager';
+import AddTodoModal from './components/Todo/AddTodoModal';
+import EditTodoModal from './components/Todo/EditTodoModal';
+import './App.css';
+
+function AppContent() {
+  const { user, loading: authLoading } = useAuth();
+  const { todos, loading: todosLoading, addTodo, updateTodo, toggleDone, deleteTodo } = useTodos();
+  const { categories, loading: catsLoading, addCategory, updateCategory, deleteCategory, initializeDefaults } = useCategories();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [editingTodo, setEditingTodo] = useState(null);
+
+  useEffect(() => {
+    if (user && !catsLoading && categories.length === 0) {
+      initializeDefaults();
+    }
+  }, [user, catsLoading, categories.length]);
+
+  const todoCounts = useMemo(() => {
+    const openTodos = todos.filter(t => !t.done);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    const byCategory = {};
+    openTodos.forEach(t => {
+      if (t.categoryId) {
+        byCategory[t.categoryId] = (byCategory[t.categoryId] || 0) + 1;
+      }
+    });
+
+    return {
+      all: openTodos.length,
+      today: openTodos.filter(t => {
+        if (!t.dueDate) return false;
+        const d = new Date(t.dueDate);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime() === today.getTime();
+      }).length,
+      upcoming: openTodos.filter(t => {
+        if (!t.dueDate) return false;
+        const d = new Date(t.dueDate);
+        d.setHours(0, 0, 0, 0);
+        return d >= today && d <= nextWeek;
+      }).length,
+      byCategory,
+    };
+  }, [todos]);
+
+  if (authLoading) {
+    return <div className="app-loading">Laden...</div>;
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  return (
+    <div className="app">
+      <Sidebar
+        categories={categories}
+        todoCounts={todoCounts}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+      <div className="app-main">
+        <Header onMenuClick={() => setSidebarOpen(true)} />
+        <Routes>
+          <Route path="/" element={
+            <TaskListView
+              todos={todos}
+              categories={categories}
+              filter="all"
+              onToggle={toggleDone}
+              onEdit={setEditingTodo}
+              onDelete={deleteTodo}
+              onAddClick={() => setAddModalOpen(true)}
+            />
+          } />
+          <Route path="/today" element={
+            <TaskListView
+              todos={todos}
+              categories={categories}
+              filter="today"
+              onToggle={toggleDone}
+              onEdit={setEditingTodo}
+              onDelete={deleteTodo}
+              onAddClick={() => setAddModalOpen(true)}
+            />
+          } />
+          <Route path="/upcoming" element={
+            <TaskListView
+              todos={todos}
+              categories={categories}
+              filter="upcoming"
+              onToggle={toggleDone}
+              onEdit={setEditingTodo}
+              onDelete={deleteTodo}
+              onAddClick={() => setAddModalOpen(true)}
+            />
+          } />
+          <Route path="/category/:categoryId" element={
+            <CategoryFilterView
+              todos={todos}
+              categories={categories}
+              onToggle={toggleDone}
+              onEdit={setEditingTodo}
+              onDelete={deleteTodo}
+              onAddClick={() => setAddModalOpen(true)}
+            />
+          } />
+          <Route path="/categories" element={
+            <CategoryManager
+              categories={categories}
+              onAdd={addCategory}
+              onUpdate={updateCategory}
+              onDelete={deleteCategory}
+            />
+          } />
+        </Routes>
+      </div>
+
+      <AddTodoModal
+        isOpen={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onSave={addTodo}
+        categories={categories}
+      />
+
+      <EditTodoModal
+        todo={editingTodo}
+        isOpen={!!editingTodo}
+        onClose={() => setEditingTodo(null)}
+        onSave={updateTodo}
+        onDelete={deleteTodo}
+        categories={categories}
+      />
+    </div>
+  );
+}
+
+function CategoryFilterView({ todos, categories, onToggle, onEdit, onDelete, onAddClick }) {
+  const { categoryId } = useParams();
+  const filteredTodos = todos.filter(t => t.categoryId === categoryId);
+  const category = categories.find(c => c.id === categoryId);
+
+  return (
+    <TaskListView
+      todos={filteredTodos}
+      categories={category ? [category] : []}
+      filter="category"
+      onToggle={onToggle}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      onAddClick={onAddClick}
+    />
+  );
+}
+
+export default function App() {
+  return (
+    <HashRouter>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </HashRouter>
+  );
+}
