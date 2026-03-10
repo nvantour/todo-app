@@ -10,9 +10,10 @@ import TaskListView from './components/TaskList/TaskListView';
 import CategoryManager from './components/Categories/CategoryManager';
 import AddTodoModal from './components/Todo/AddTodoModal';
 import EditTodoModal from './components/Todo/EditTodoModal';
+import QuickAddPage from './components/QuickAdd/QuickAddPage';
 import './App.css';
 
-function AppContent() {
+function MainLayout() {
   const { user, loading: authLoading } = useAuth();
   const { todos, loading: todosLoading, addTodo, updateTodo, toggleDone, deleteTodo } = useTodos();
   const { categories, loading: catsLoading, addCategory, updateCategory, deleteCategory, initializeDefaults } = useCategories();
@@ -165,6 +166,15 @@ function CategoryFilterView({ todos, categories, onToggle, onEdit, onDelete, onA
       onDelete={onDelete}
       onAddClick={onAddClick}
     />
+  );
+}
+
+function AppContent() {
+  return (
+    <Routes>
+      <Route path="/quick-add" element={<QuickAddPage />} />
+      <Route path="/*" element={<MainLayout />} />
+    </Routes>
   );
 }
 

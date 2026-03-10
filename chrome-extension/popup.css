@@ -1,0 +1,90 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  width: 340px;
+  background: #fff;
+}
+
+.popup {
+  padding: 16px;
+}
+
+.popup-header {
+  margin-bottom: 14px;
+}
+
+.popup-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+#quick-form {
+  display: flex;
+  gap: 8px;
+}
+
+#todo-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 14px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 8px;
+  outline: none;
+  color: #1a1a1a;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+
+#todo-input:focus {
+  border-color: #4A90D9;
+}
+
+#todo-input::placeholder {
+  color: #999;
+}
+
+#submit-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  color: #fff;
+  background: #4A90D9;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+#submit-btn:hover {
+  background: #3A7BC8;
+}
+
+#submit-btn:active {
+  background: #2D6AB5;
+}
+
+#submit-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.popup-hint {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #999;
+  text-align: center;
+}

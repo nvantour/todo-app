@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="popup.css">
+  <title>Nino Todo</title>
+</head>
+<body>
+  <div class="popup">
+    <div class="popup-header">
+      <div class="popup-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4A90D9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span>Nino Todo</span>
+      </div>
+    </div>
+    <form id="quick-form">
+      <input
+        type="text"
+        id="todo-input"
+        placeholder="Wat moet je doen?"
+        autocomplete="off"
+        autofocus
+      />
+      <button type="submit" id="submit-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+          <polyline points="12 5 19 12 12 19"/>
+        </svg>
+        Toevoegen
+      </button>
+    </form>
+    <p class="popup-hint">Typ en druk Enter om snel een todo toe te voegen</p>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
