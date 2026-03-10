@@ -16,7 +16,7 @@ import './App.css';
 
 function MainLayout() {
   const { user, loading: authLoading } = useAuth();
-  const { todos, loading: todosLoading, addTodo, updateTodo, toggleDone, deleteTodo } = useTodos();
+  const { todos, addTodo, updateTodo, toggleDone, deleteTodo } = useTodos();
   const { categories, loading: catsLoading, addCategory, updateCategory, deleteCategory, initializeDefaults } = useCategories();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);

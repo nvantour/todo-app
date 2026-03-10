@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { findFreeSlots, formatSlot, createCalendarEvent, deleteCalendarEvent } from '../../utils/calendarApi';
 import { formatTimeEstimate } from '../../utils/formatting';
@@ -13,18 +13,12 @@ export default function ScheduleModal({ todo, isOpen, onClose, onEventCreated, o
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && todo?.timeEstimate && accessToken) {
-      loadSlots();
-    }
-  }, [isOpen, todo, accessToken]);
-
-  const getToken = async () => {
+  const getToken = useCallback(async () => {
     if (accessToken) return accessToken;
     return await refreshAccessToken();
-  };
+  }, [accessToken, refreshAccessToken]);
 
-  const loadSlots = async () => {
+  const loadSlots = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -55,7 +49,13 @@ export default function ScheduleModal({ todo, isOpen, onClose, onEventCreated, o
       }
     }
     setLoading(false);
-  };
+  }, [getToken, refreshAccessToken, todo]);
+
+  useEffect(() => {
+    if (isOpen && todo?.timeEstimate && accessToken) {
+      loadSlots();
+    }
+  }, [isOpen, todo, accessToken, loadSlots]);
 
   const handleSchedule = async (slot) => {
     setScheduling(true);
