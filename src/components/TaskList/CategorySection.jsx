@@ -3,7 +3,7 @@ import TodoItem from './TodoItem';
 import { totalTimeEstimate } from '../../utils/formatting';
 import './CategorySection.css';
 
-export default function CategorySection({ category, todos, onToggle, onEdit, onDelete }) {
+export default function CategorySection({ category, todos, onToggle, onEdit, onDelete, onSchedule }) {
   const [collapsed, setCollapsed] = useState(false);
   const openTodos = todos.filter(t => !t.done);
   const doneTodos = todos.filter(t => t.done);
@@ -35,6 +35,7 @@ export default function CategorySection({ category, todos, onToggle, onEdit, onD
               onToggle={onToggle}
               onEdit={onEdit}
               onDelete={onDelete}
+              onSchedule={onSchedule}
             />
           ))}
 

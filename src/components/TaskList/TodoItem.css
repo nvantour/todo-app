@@ -75,6 +75,31 @@
   font-weight: 600;
 }
 
+.todo-calendar-badge {
+  display: inline-flex;
+  align-items: center;
+  color: #50C878;
+}
+
+.todo-schedule {
+  background: none;
+  border: none;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.todo-item:hover .todo-schedule {
+  opacity: 1;
+}
+
+.todo-schedule:hover {
+  color: var(--color-primary);
+}
+
 .todo-delete {
   background: none;
   border: none;

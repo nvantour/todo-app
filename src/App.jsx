@@ -10,6 +10,7 @@ import TaskListView from './components/TaskList/TaskListView';
 import CategoryManager from './components/Categories/CategoryManager';
 import AddTodoModal from './components/Todo/AddTodoModal';
 import EditTodoModal from './components/Todo/EditTodoModal';
+import ScheduleModal from './components/Calendar/ScheduleModal';
 import QuickAddPage from './components/QuickAdd/QuickAddPage';
 import './App.css';
 
@@ -20,6 +21,7 @@ function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState(null);
+  const [schedulingTodo, setSchedulingTodo] = useState(null);
 
   useEffect(() => {
     if (user && !catsLoading && categories.length === 0) {
@@ -59,6 +61,16 @@ function MainLayout() {
     };
   }, [todos]);
 
+  const handleEventCreated = (todoId, calendarEventId) => {
+    updateTodo(todoId, { calendarEventId });
+  };
+
+  const handleEventRemoved = (todoId) => {
+    updateTodo(todoId, { calendarEventId: null });
+  };
+
+  const getCategory = (todo) => categories.find(c => c.id === todo?.categoryId);
+
   if (authLoading) {
     return <div className="app-loading">Laden...</div>;
   }
@@ -87,6 +99,7 @@ function MainLayout() {
               onEdit={setEditingTodo}
               onDelete={deleteTodo}
               onAddClick={() => setAddModalOpen(true)}
+              onSchedule={setSchedulingTodo}
             />
           } />
           <Route path="/today" element={
@@ -98,6 +111,7 @@ function MainLayout() {
               onEdit={setEditingTodo}
               onDelete={deleteTodo}
               onAddClick={() => setAddModalOpen(true)}
+              onSchedule={setSchedulingTodo}
             />
           } />
           <Route path="/upcoming" element={
@@ -109,6 +123,7 @@ function MainLayout() {
               onEdit={setEditingTodo}
               onDelete={deleteTodo}
               onAddClick={() => setAddModalOpen(true)}
+              onSchedule={setSchedulingTodo}
             />
           } />
           <Route path="/category/:categoryId" element={
@@ -119,6 +134,7 @@ function MainLayout() {
               onEdit={setEditingTodo}
               onDelete={deleteTodo}
               onAddClick={() => setAddModalOpen(true)}
+              onSchedule={setSchedulingTodo}
             />
           } />
           <Route path="/categories" element={
@@ -145,13 +161,23 @@ function MainLayout() {
         onClose={() => setEditingTodo(null)}
         onSave={updateTodo}
         onDelete={deleteTodo}
+        onSchedule={setSchedulingTodo}
         categories={categories}
+      />
+
+      <ScheduleModal
+        todo={schedulingTodo}
+        isOpen={!!schedulingTodo}
+        onClose={() => setSchedulingTodo(null)}
+        onEventCreated={handleEventCreated}
+        onEventRemoved={handleEventRemoved}
+        category={getCategory(schedulingTodo)}
       />
     </div>
   );
 }
 
-function CategoryFilterView({ todos, categories, onToggle, onEdit, onDelete, onAddClick }) {
+function CategoryFilterView({ todos, categories, onToggle, onEdit, onDelete, onAddClick, onSchedule }) {
   const { categoryId } = useParams();
   const filteredTodos = todos.filter(t => t.categoryId === categoryId);
   const category = categories.find(c => c.id === categoryId);
@@ -165,6 +191,7 @@ function CategoryFilterView({ todos, categories, onToggle, onEdit, onDelete, onA
       onEdit={onEdit}
       onDelete={onDelete}
       onAddClick={onAddClick}
+      onSchedule={onSchedule}
     />
   );
 }

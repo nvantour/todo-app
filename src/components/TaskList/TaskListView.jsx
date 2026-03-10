@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import CategorySection from './CategorySection';
 import './TaskListView.css';
 
-export default function TaskListView({ todos, categories, filter, onToggle, onEdit, onDelete, onAddClick }) {
+export default function TaskListView({ todos, categories, filter, onToggle, onEdit, onDelete, onAddClick, onSchedule }) {
   const filteredTodos = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -82,6 +82,7 @@ export default function TaskListView({ todos, categories, filter, onToggle, onEd
               onToggle={onToggle}
               onEdit={onEdit}
               onDelete={onDelete}
+              onSchedule={onSchedule}
             />
           ))
         }
