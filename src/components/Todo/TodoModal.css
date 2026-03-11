@@ -231,6 +231,134 @@
   background: rgba(74, 144, 217, 0.06);
 }
 
+/* Voice input */
+.input-with-mic {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.input-with-mic .form-input {
+  flex: 1;
+}
+
+.mic-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.mic-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(74, 144, 217, 0.06);
+}
+
+.mic-btn--active {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: white;
+  animation: micPulse 1.5s ease infinite;
+}
+
+.mic-btn--active:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: white;
+}
+
+@keyframes micPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+
+.voice-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: 4px;
+}
+
+.voice-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: voiceDotPulse 1s ease infinite;
+}
+
+@keyframes voiceDotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Voice multi-todo list */
+.voice-list-hint {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.voice-todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.voice-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.voice-todo-item:hover {
+  background: var(--color-hover);
+}
+
+.voice-todo-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--color-primary);
+}
+
+.voice-todo-item--unchecked {
+  opacity: 0.4;
+}
+
+.voice-todo-item--unchecked .voice-todo-text {
+  text-decoration: line-through;
+}
+
+.voice-todo-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.voice-todo-cat {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
 @media (max-width: 768px) {
   .modal {
     max-width: 100%;
