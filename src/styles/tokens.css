@@ -1,0 +1,101 @@
+/* Design-tokens: de enige plek waar kleuren, maten en lettertypes worden vastgelegd. */
+:root {
+  --font: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --bg: #fbfaf7;
+  --surface: #ffffff;
+  --sidebar: #f4f2ec;
+  --hover: rgba(28, 27, 31, 0.045);
+  --ink: #1c1b1f;
+  --ink-2: #5f5c66;
+  --ink-3: #8e8a96;
+  --line: #e9e6de;
+  --line-strong: #d9d5cb;
+
+  --accent: #5b4bdb;
+  --accent-ink: #ffffff;
+  --accent-soft: #eeebfd;
+  --accent-text: #4a3bc4;
+
+  --p1: #dc2f3d;
+  --p2: #e08a1e;
+  --p3: #3b7ddd;
+  --p4: #a8a4b0;
+  --danger: #c9283a;
+  --ok: #2f9e6e;
+
+  --shadow-pop: 0 1px 2px rgba(28, 27, 31, 0.06), 0 8px 28px rgba(28, 27, 31, 0.1);
+  --shadow-fab: 0 6px 20px rgba(91, 75, 219, 0.35);
+  --scrim: rgba(28, 27, 31, 0.28);
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-full: 999px;
+
+  --sidebar-w: 224px;
+  --content-w: 680px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #151417;
+    --surface: #1d1c20;
+    --sidebar: #1a191d;
+    --hover: rgba(237, 235, 242, 0.06);
+    --ink: #edebf2;
+    --ink-2: #a9a5b3;
+    --ink-3: #77737f;
+    --line: #2b2930;
+    --line-strong: #3a3741;
+    --accent: #8f82f5;
+    --accent-ink: #14121f;
+    --accent-soft: #2a2646;
+    --accent-text: #b3aafa;
+    --p1: #f0616c;
+    --p2: #eba347;
+    --p3: #6ea2ee;
+    --p4: #6c6875;
+    --danger: #f0616c;
+    --ok: #4fbf8e;
+    --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 28px rgba(0, 0, 0, 0.5);
+    --shadow-fab: 0 6px 20px rgba(0, 0, 0, 0.5);
+    --scrim: rgba(0, 0, 0, 0.55);
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #151417;
+  --surface: #1d1c20;
+  --sidebar: #1a191d;
+  --hover: rgba(237, 235, 242, 0.06);
+  --ink: #edebf2;
+  --ink-2: #a9a5b3;
+  --ink-3: #77737f;
+  --line: #2b2930;
+  --line-strong: #3a3741;
+  --accent: #8f82f5;
+  --accent-ink: #14121f;
+  --accent-soft: #2a2646;
+  --accent-text: #b3aafa;
+  --p1: #f0616c;
+  --p2: #eba347;
+  --p3: #6ea2ee;
+  --p4: #6c6875;
+  --danger: #f0616c;
+  --ok: #4fbf8e;
+  --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 28px rgba(0, 0, 0, 0.5);
+  --shadow-fab: 0 6px 20px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.55);
+}
+
+/* Native keuzevelden (datum, tijd) volgen het gekozen thema, niet het apparaat */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}

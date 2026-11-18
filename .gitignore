@@ -26,3 +26,16 @@ dist-ssr
 # Firebase service account keys
 mcp-server/service-account.json
 **/service-account*.json
+
+# MCP config (bevat lokale paden)
+.mcp.json
+
+# Lokale instellingen van de server (per Firebase-project)
+functions/.env*
+functions/lib
+
+# Demovideo's
+demo/
+
+# Firebase-CLI cache
+.firebase/

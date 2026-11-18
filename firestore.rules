@@ -1,13 +1,28 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /todos/{todoId} {
+    // Alles van de todo-app staat onder de eigen gebruiker; alleen de eigenaar kan erbij.
+    // Serverfuncties (api, mcp, oauth, calendarScan) gebruiken de Admin SDK en vallen buiten deze regels.
+    match /users/{uid}/{collection}/{docId} {
       allow read, write: if request.auth != null
-        && request.auth.token.email == "ninovantour@hotmail.com";
+        && request.auth.uid == uid
+        && collection in ['todos', 'projects', 'labels', 'suggestions', 'calendarRules'];
     }
-    match /categories/{categoryId} {
-      allow read, write: if request.auth != null
-        && request.auth.token.email == "ninovantour@hotmail.com";
+
+    // Persoonlijke tokens en OAuth-gegevens voor de koppelingen. Alleen de server komt erbij
+    // (Admin SDK negeert deze regels); vanuit de app is alles dicht, ook je eigen tokens.
+    //   apiTokens/{sha256-hash}   { id, hash, uid, name, kind, createdAt, lastUsedAt, expiresAt }
+    //   oauthClients/{clientId}   geregistreerde apps (Claude)
+    //   oauthCodes/{sha256-hash}  eenmalige codes tijdens het koppelen
+    //
+    // Bronnen-fase (alleen server):
+    //   googleConnections/{uid}   Google-koppeling met het refresh-token (nooit leesbaar vanuit de app)
+    //   googleStates/{hash}       eenmalige `state` tijdens het koppelen met Google (vervalt na 10 minuten)
+    //   pushDevices/{id}          FCM-registratietokens van apparaten die meldingen krijgen
+    //   serverState/{uid}         laatste scans, verstuurde meldingen, standaardregel aangemaakt
+    // De regels voor de agenda-scan (users/{uid}/calendarRules) bewerkt de app zelf via de lijst hierboven.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

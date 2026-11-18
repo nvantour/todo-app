@@ -1,56 +1,71 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Nino's eigen todo-app: AI-native, voor laptop en telefoon. Live op **https://work-apps-48770.web.app**. Vervangt sinds 2026-11-18 het oude `todos.md`-systeem en de oude webapp.
 
 ## Taal & communicatie
 
-Spreek Nederlands. Gebruiker: Nino. Bevestig altijd voor grote acties.
+Spreek Nederlands. Gebruiker: Nino. Bevestig altijd voor grote acties. UI-tekst in eenvoudig Nederlands.
 
 ## Commands
 
 ```bash
-npm run dev      # Dev server op localhost:5173/todo-app/
-npm run build    # Productie build → dist/
-npm run lint     # ESLint check
-npm run preview  # Preview van productie build
+npm run dev         # Dev-server (logt in op het echte project via .env.local)
+npm run dev -- --mode qa --port 5177   # Testmodus: lokale opslag met voorbeelddata, geen login, raakt echte taken niet
+npm run typecheck   # TypeScript, ook de service worker
+npm run lint
+npm test            # Vitest (app)
+npm run build       # → dist/
+
+cd functions && npx vitest run && npm run build   # Server: tests + bundel
+firebase deploy --only hosting                     # Alleen de app
+firebase deploy --only functions,hosting,firestore # Alles
 ```
 
-Deploy is automatisch: push naar `main` → GitHub Actions → GitHub Pages (`nvantour.github.io/todo-app`).
+Deploy is handmatig met de Firebase-CLI (project `work-apps-48770`, gedeeld met Helder Mail). Er is geen automatische deploy bij een push.
+
+## Wat de app doet
+
+- Eén scherm **Taken** met twee groepen: *Om nu te doen* (`bucket: 'now'`) en *Om niet te vergeten* (`'later'`). Een taak met een datum schuift op die dag vanzelf naar "nu". Geen prioriteiten, geen Vandaag/Binnenkort.
+- **Per klant**: raster met een blok per klant plus "Overig".
+- **Voorstellen**: wat tools of AI zelf vinden (agenda, meeting, mail, chat). Wordt pas een taak na akkoord.
+- Checklist zoals Notes: klik in de tekst om te bewerken, lege regel onderaan om door te typen. Klant, datum, tijd en herhaling worden herkend uit de tekst (`src/lib/parse.ts`, `src/lib/detect.ts`).
+- Inspreken (`src/voice/`), zoeken (⌘K), instellingen (thema, agenda-regels, meldingen, koppelingen).
 
 ## Architectuur
 
-**Stack:** React 19 + Vite 7 + Firebase (Auth + Firestore) + PWA
+**App** (`src/`): Vite + React 19 + TypeScript, plain CSS met tokens in `src/styles/tokens.css`, Poppins (lokaal meegeleverd), PWA met eigen service worker `src/sw.ts`.
 
-**Routing:** `HashRouter` (vereist voor GitHub Pages). Alle URLs zijn `/#/path` format. Base path: `/todo-app/`.
+- `src/model/types.ts` — het datamodel; leidend voor app, server en koppelingen. Alleen uitbreiden, niet hernoemen.
+- `src/data/store.ts` — de `Store`-interface waar alle schermen mee praten. Daaronder: lokale opslag (testmodus) of Firestore (`firestoreStore.ts`), gewisseld door `connection.ts`.
+- `src/data/session.ts` — Google-login. `authDomain` is bewust het hostingadres (`web.app`), anders loopt inloggen in de geïnstalleerde app in een lus.
+- Datums zijn overal ISO-tekst (`YYYY-MM-DD`), geen Timestamps.
 
-**Data flow:**
-- `AuthContext` → Google Sign-In + OAuth access token (ook voor Calendar API)
-- `useTodos()` hook → Firestore real-time sync via `onSnapshot`, offline-first met IndexedDB persistence
-- `useCategories()` hook → categorieen met keywords voor auto-detectie, initialiseert defaults bij eerste login
-- `categoryDetection.js` → keyword matching op todo-tekst → automatisch categorie toewijzen
+**Server** (`functions/`): Cloud Functions v2, Node 22, regio `europe-west1`. Logica los van Firestore (`repo.ts` + `MemoryRepo` voor tests).
 
-**Layout splitpoint in App.jsx:**
-- `/quick-add` route → rendert `QuickAddPage` standalone (geen sidebar/header) — gebruikt door Chrome extension
-- `/*` routes → rendert `MainLayout` met sidebar, header, modals en task views
+- `api` — REST-koppelpunt (`/api/...`): capture, todos, suggestions, brief, tokens, transcribe, scans, airtable, schedule.
+- `mcp` — Claude-koppeling op `/mcp` (Streamable HTTP). `oauth` — inlogroute voor de Claude-app.
+- `calendarScan`, `chatScan`, `morningPush`, `dueTimePush` — geplande taken.
+- **Geen Claude API-sleutel** (bewuste keuze van Nino: geen extra kosten). Slim werk loopt via Claude zelf over de MCP-koppeling; de server gebruikt vaste herkenning.
 
-**Firestore collections:** `todos` en `categories`. Security rules beperken toegang tot `ninovantour@hotmail.com`.
+**Opslag** (Firestore, eur3): `users/{uid}/{todos,projects,labels,suggestions,calendarRules}`; tokens en Google-koppeling in collecties die voor clients dicht zijn. Zie `firestore.rules`.
 
-**Chrome Extension** (`chrome-extension/`): MV3, geen Firebase SDK. Opent de webapp's `/#/quick-add?text=...` URL in een popup-venster. Context menu + Cmd+Shift+T shortcut.
+Het volledige contract voor koppelingen staat in `docs/koppelingen.md`; serverinstellingen en handmatige stappen in `docs/server.md`; spraak in `docs/voice.md`; Siri in `docs/siri.md`.
 
-## Belangrijke patronen
+## Vaste afspraken
 
-- Firebase app init met `getApps().length` check (voorkomt duplicate-app error bij Vite HMR)
-- Firestore Timestamps worden geconverteerd naar JS Dates in hooks, niet in components
-- Categorieen hebben `keywords[]` array voor auto-detectie; `detectCategory()` matcht case-insensitive
-- PWA via `vite-plugin-pwa` met autoUpdate service worker
-- CSS custom properties in `index.css` voor theming; system font stack
+- Wat Nino letterlijk vraagt → taak (`add_todo`). Wat een tool of AI zelf vindt → voorstel (`suggest_todo`), nooit direct een taak.
+- De service worker mag `/__/` (Firebase-login), `/api`, `/mcp`, `/oauth` en `/.well-known` niet onderscheppen.
+- Sleutels staan nooit in de repo: Firebase-webconfig in `.env.local` (niet geheim), serversleutels in de kluis van het project (`firebase functions:secrets:set`), de persoonlijke sleutel voor Claude als `TODO_APP_TOKEN` in `~/.zprofile`.
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` met waarde `-` betekent: Google-koppeling nog niet ingesteld.
 
-**Voice input** (`useVoiceInput` hook): Web Speech API wrapper (nl-NL), continue modus. `parseVoiceText()` splitst op "en"/"ook"/komma's voor multi-todo detectie.
+## Stand (2026-11-18)
 
-**QuickAddPage** (`/#/quick-add`): Standalone pagina voor externe integraties. Ondersteunt `?text=...` en `?autosave=true` URL parameters. Multi-todo support via voice parser.
+Werkt: app, login, sync, server, Claude-koppeling op de laptop. Nog in te stellen door Nino: Google-koppeling (agenda, Chat), meldingen (VAPID-sleutel), Claude-app op de telefoon, Siri-opdracht. Zie `docs/server.md`.
 
-**MCP Server** (`mcp-server/`): Node.js MCP server met Firebase Admin SDK. Tools: `list_todos`, `add_todo`, `complete_todo`, `reopen_todo`, `update_todo`, `delete_todo`, `list_categories`. Vereist service account key via `FIREBASE_CREDENTIALS_PATH` env var.
+## Chrome-extensie (`chrome-extension/`)
+
+MV3. Opent `https://work-apps-48770.web.app/quick-add?text=...` in een klein venster (contextmenu + Cmd+Shift+T in Chrome).
 
 ## QA
 
-Na elke wijziging in webapp-functionaliteit: voer `/qa` skill uit.
+Na elke wijziging in webapp-functionaliteit: voer de `/qa` skill uit, in testmodus (`--mode qa`) zodat echte taken niet vervuild raken.

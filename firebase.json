@@ -1,0 +1,32 @@
+{
+  "hosting": {
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      { "source": "/api/**", "function": { "functionId": "api", "region": "europe-west1" } },
+      { "source": "/mcp", "function": { "functionId": "mcp", "region": "europe-west1" } },
+      { "source": "/oauth/**", "function": { "functionId": "oauth", "region": "europe-west1" } },
+      { "source": "/.well-known/oauth-protected-resource{,/**}", "function": { "functionId": "oauth", "region": "europe-west1" } },
+      { "source": "/.well-known/oauth-authorization-server", "function": { "functionId": "oauth", "region": "europe-west1" } },
+      { "source": "**", "destination": "/index.html" }
+    ]
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "src", "test", "*.local"],
+      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" ci", "npm --prefix \"$RESOURCE_DIR\" run build"]
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "functions": { "port": 5001 },
+    "firestore": { "port": 8080 },
+    "hosting": { "port": 5000 },
+    "ui": { "enabled": true }
+  }
+}

@@ -1,27 +1,36 @@
-const WEBAPP_URL = 'https://nvantour.github.io/todo-app';
+const WEBAPP_URL = 'https://work-apps-48770.web.app';
 
 // Registreer context menu bij installatie
 chrome.runtime.onInstalled.addListener(() => {
+  // Menu-item bij geselecteerde tekst
   chrome.contextMenus.create({
-    id: 'add-todo',
-    title: 'Toevoegen als todo',
+    id: 'add-todo-selection',
+    title: 'Toevoegen als todo: "%s"',
     contexts: ['selection']
+  });
+  // Menu-item zonder selectie (opent lege quick-add)
+  chrome.contextMenus.create({
+    id: 'add-todo-page',
+    title: 'Nieuwe todo toevoegen',
+    contexts: ['page']
   });
 });
 
 // Context menu click handler
 chrome.contextMenus.onClicked.addListener((info) => {
-  if (info.menuItemId === 'add-todo' && info.selectionText) {
+  if (info.menuItemId === 'add-todo-selection' && info.selectionText) {
     const text = encodeURIComponent(info.selectionText.trim());
     openQuickAdd(text);
+  } else if (info.menuItemId === 'add-todo-page') {
+    openQuickAdd('');
   }
 });
 
 // Open de webapp quick-add pagina in een popup-venster
 function openQuickAdd(text) {
   const url = text
-    ? `${WEBAPP_URL}/#/quick-add?text=${text}`
-    : `${WEBAPP_URL}/#/quick-add`;
+    ? `${WEBAPP_URL}/quick-add?text=${text}`
+    : `${WEBAPP_URL}/quick-add`;
 
   chrome.windows.create({
     url: url,

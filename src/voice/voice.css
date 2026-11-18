@@ -1,0 +1,405 @@
+/* Inspreek-sheet. Alleen tokens uit tokens.css. */
+
+.vs-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--ink) 38%, transparent);
+  animation: vs-fade 0.16s var(--ease);
+}
+
+.vs {
+  width: min(560px, 100%);
+  max-height: min(680px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+  outline: none;
+  animation: vs-rise 0.2s var(--ease);
+}
+
+.vs__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 4px 22px;
+}
+
+.vs__head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.vs__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 10px 22px 20px;
+  overflow-y: auto;
+}
+
+.vs-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.vs-icon:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+/* grote opnameknop */
+.vs-mic {
+  align-self: center;
+  position: relative;
+  width: 84px;
+  height: 84px;
+  margin-top: 6px;
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: var(--shadow-fab);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.15s var(--ease);
+}
+
+.vs-mic:hover:not(:disabled) {
+  transform: scale(1.04);
+}
+
+.vs-mic:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.vs-mic.is-live::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: var(--r-full);
+  border: 2px solid var(--accent);
+  opacity: 0.45;
+  animation: vs-pulse 1.5s var(--ease) infinite;
+}
+
+.vs-status {
+  margin: 0;
+  text-align: center;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+.vs-spin {
+  animation: vs-rotate 0.9s linear infinite;
+}
+
+.vs-live,
+.vs-text {
+  width: 100%;
+  min-height: 84px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 16px; /* voorkomt inzoomen op iPhone */
+  line-height: 1.5;
+}
+
+.vs-text {
+  resize: vertical;
+}
+
+.vs-text:focus-visible,
+.vs-row__title:focus-visible,
+.vs-btn:focus-visible,
+.vs-mic:focus-visible,
+.vs-icon:focus-visible,
+.vs-chip:focus-within,
+.vs-seg button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.vs-hint {
+  color: var(--ink-3);
+}
+
+.vs-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.vs-error p {
+  margin: 0;
+}
+
+.vs-heard {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.vs-note {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+
+/* knoppen */
+.vs__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.vs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.vs-btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.vs-btn.is-primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.vs-btn.is-primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+
+.vs-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* lijst met herkende taken */
+.vs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vs-row {
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg);
+}
+
+.vs-row__title {
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.vs-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.vs-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.vs-chip.is-set {
+  color: var(--ink);
+}
+
+.vs-chip svg {
+  flex: none;
+}
+
+/* het echte veld ligt onzichtbaar over de chip, zodat tikken de keuzelijst of kalender opent */
+.vs-chip select,
+.vs-chip input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.vs-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+}
+
+.vs-seg {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: var(--surface);
+}
+
+.vs-seg button {
+  padding: 2px 10px;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.vs-seg button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+.vs-row__remove {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+}
+
+/* telefoon: sheet van onderen */
+@media (max-width: 760px) {
+  .vs-backdrop {
+    place-items: end stretch;
+    padding: 0;
+  }
+
+  .vs {
+    width: 100%;
+    max-height: 88dvh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: vs-slide 0.26s var(--ease);
+  }
+
+  .vs__body {
+    padding-inline: 18px;
+  }
+
+  .vs-chip,
+  .vs-seg button {
+    padding-block: 7px;
+  }
+
+  .vs-btn {
+    padding-block: 12px;
+  }
+
+  .vs__foot .vs-btn.is-primary {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+@keyframes vs-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes vs-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes vs-slide {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes vs-pulse {
+  from {
+    transform: scale(0.92);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+}
+
+@keyframes vs-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vs-backdrop,
+  .vs,
+  .vs-mic.is-live::after {
+    animation: none;
+  }
+
+  .vs-spin {
+    animation-duration: 3s;
+  }
+
+  .vs-mic {
+    transition: none;
+  }
+}

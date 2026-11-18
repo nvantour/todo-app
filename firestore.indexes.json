@@ -1,0 +1,9 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    { "collectionGroup": "oauthCodes", "fieldPath": "expireAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "oauthClients", "fieldPath": "expireAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "googleStates", "fieldPath": "expireAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "apiTokens", "fieldPath": "expireAt", "ttl": true, "indexes": [] }
+  ]
+}
