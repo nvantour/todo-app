@@ -1,4 +1,4 @@
-import type { AppData, Project, Todo } from '../model/types'
+import type { AppData, Discussion, Project, Todo } from '../model/types'
 import { addDays, todayISO } from '../lib/dates'
 
 // Voorbeelddata voor ontwerp en ontwikkeling; alleen gebruikt zonder Firebase-config.
@@ -26,6 +26,37 @@ export function seedProjects(): Project[] {
     keywords: name === 'RAI Amsterdam' ? ['rai', 'rai amsterdam'] : name === 'Sunny Cars' ? ['sunny', 'sunny cars'] : [name.toLowerCase()],
     order: i,
     archived: false,
+  }))
+}
+
+/** Nino's lijst uit Apple Notes, als voorbeeld voor "Om te bespreken". */
+function seedDiscussions(stamp: string): Discussion[] {
+  const groups: Array<[string, string | null, string[]]> = [
+    ['Prominent', 'prominent', ['Surveys', 'Onderzoek modular builder', 'Onderzoek prijspercenten', 'Prio testen', 'Analyse testen', 'Planning:', 'PDP', 'Pop-ups']],
+    [
+      'Maxeda',
+      'maxeda',
+      [
+        'Process mining',
+        'CRO Specialist',
+        'Sessie over A/B testen - Brico',
+        'AI Feature:',
+        'In stappen uitvoeren -> eerst interne pijlen',
+        'Daarna model testen / verbeteren ... testen.',
+        'Maandag vertellen of anders lossen met Alex/Benthe.',
+      ],
+    ],
+    ['Wehkamp', 'wehkamp', ['QA flow', 'Airtable migration', 'Experiments']],
+    ['Nicola / Ewald', null, ['Coming to the office', 'Omoda / Wehkamp deck', 'Additional ideas Florien', 'USP tests']],
+  ]
+  return groups.map(([title, projectId, items], g) => ({
+    id: `disc-${g + 1}`,
+    title,
+    projectId,
+    items: items.map((text, i) => ({ id: `disc-${g + 1}-${i + 1}`, text, done: false, doneAt: null })),
+    order: g,
+    createdAt: stamp,
+    updatedAt: stamp,
   }))
 }
 
@@ -116,6 +147,7 @@ export function seedData(): AppData {
         createdAt: stamp,
       },
     ],
+    discussions: seedDiscussions(stamp),
     calendarRules: [{ id: 'qbr', match: 'QBR', titleTemplate: '{titel} voorbereiden', workdaysBefore: 3, enabled: true }],
   }
 }

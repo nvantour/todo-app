@@ -1,4 +1,4 @@
-import type { Label, NewTodo, Project, Suggestion, Todo, CalendarRule } from '../model/types'
+import type { CalendarRule, Discussion, DiscussionItem, Label, NewTodo, Project, Suggestion, Todo } from '../model/types'
 import { nextOccurrence, todayISO } from '../lib/dates'
 
 // Gedeelde regels voor beide opslagvormen (lokaal en Firestore), zodat ze zich gelijk gedragen.
@@ -82,4 +82,69 @@ export function normalizeLabel(id: string, raw: Raw): Label {
 
 export function normalizeRule(id: string, raw: Raw): CalendarRule {
   return { match: '', titleTemplate: '{titel}', workdaysBefore: 0, enabled: true, ...(raw as Partial<CalendarRule>), id }
+}
+
+// ---------- Om te bespreken ----------
+
+/** Afgevinkte punten blijven zo lang bewaard (maar zijn direct onzichtbaar). */
+export const DISCUSSION_KEEP_DAYS = 14
+
+/** Een regel die eindigt op een dubbele punt is een tussenkopje. */
+export const isHeading = (text: string) => text.trim().endsWith(':')
+
+export function buildDiscussionItem(text: string): DiscussionItem {
+  return { id: newId(), text: text.trim(), done: false, doneAt: null }
+}
+
+export function buildDiscussion(title: string, projectId: string | null, order: number): Discussion {
+  const stamp = nowISO()
+  return { id: newId(), title: cleanDiscussionTitle(title), projectId, items: [], order, createdAt: stamp, updatedAt: stamp }
+}
+
+/** "Maxeda:" wordt "Maxeda". */
+export const cleanDiscussionTitle = (title: string) => title.trim().replace(/:+$/, '').trim()
+
+/** Splitst getypte of geplakte tekst in losse punten (lege regels vallen weg). */
+export function splitLines(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*(?:[-*•]\s+)/, '').trim())
+    .filter(Boolean)
+}
+
+/** Vinkt een punt af (of zet het terug). Tussenkopjes en onbekende id's blijven ongemoeid. */
+export function toggleDiscussionItem(items: DiscussionItem[], id: string, now = nowISO()): DiscussionItem[] {
+  return items.map((i) => (i.id === id && !isHeading(i.text) ? { ...i, done: !i.done, doneAt: i.done ? null : now } : i))
+}
+
+/** Gooit punten weg die al langer dan `days` dagen zijn afgevinkt. */
+export function pruneDoneItems(items: DiscussionItem[], now = Date.now(), days = DISCUSSION_KEEP_DAYS): DiscussionItem[] {
+  const limit = now - days * 86_400_000
+  return items.filter((i) => !(i.done && i.doneAt && new Date(i.doneAt).getTime() < limit))
+}
+
+/** Wat de lijst laat zien: alles wat nog niet is afgevinkt. */
+export const visibleItems = (d: Discussion) => d.items.filter((i) => !i.done)
+
+/** Het aantal echte punten (zonder tussenkopjes) dat nog besproken moet worden. */
+export const openItemCount = (d: Discussion) => visibleItems(d).filter((i) => !isHeading(i.text)).length
+
+export function normalizeDiscussion(id: string, raw: Raw): Discussion {
+  const base = { title: '', projectId: null, order: 0, createdAt: nowISO(), updatedAt: nowISO() }
+  const items = Array.isArray(raw.items) ? (raw.items as Partial<DiscussionItem>[]) : []
+  return {
+    ...base,
+    ...(raw as Partial<Discussion>),
+    id,
+    items: items.map((i) => ({ id: i.id ?? newId(), text: i.text ?? '', done: Boolean(i.done), doneAt: i.doneAt ?? null })),
+  }
+}
+
+/** Opruimen bij het opslaan: oude afgevinkte punten verdwijnen, de titel wordt netjes. */
+export function preparePatch(patch: Partial<Discussion>): Partial<Discussion> {
+  return {
+    ...patch,
+    ...(patch.items ? { items: pruneDoneItems(patch.items) } : {}),
+    ...(patch.title !== undefined ? { title: cleanDiscussionTitle(patch.title) } : {}),
+  }
 }

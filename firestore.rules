@@ -6,7 +6,7 @@ service cloud.firestore {
     match /users/{uid}/{collection}/{docId} {
       allow read, write: if request.auth != null
         && request.auth.uid == uid
-        && collection in ['todos', 'projects', 'labels', 'suggestions', 'calendarRules'];
+        && collection in ['todos', 'projects', 'labels', 'suggestions', 'calendarRules', 'discussions'];
     }
 
     // Persoonlijke tokens en OAuth-gegevens voor de koppelingen. Alleen de server komt erbij

@@ -3,7 +3,7 @@ import type { Firestore } from 'firebase/firestore'
 import type { AppData, Todo } from '../model/types'
 import { detectProject } from '../lib/detect'
 import type { Store } from './store'
-import { buildProject, buildRule, buildTodo, normalizeLabel, normalizeProject, normalizeRule, normalizeSuggestion, normalizeTodo, nowISO, todoFromSuggestion, toggleChanges } from './logic'
+import { buildDiscussion, buildProject, buildRule, buildTodo, normalizeDiscussion, normalizeLabel, normalizeProject, normalizeRule, normalizeSuggestion, normalizeTodo, nowISO, preparePatch, todoFromSuggestion, toggleChanges } from './logic'
 import { seedProjects } from './seed'
 import { getFirebaseApp } from './session'
 
@@ -40,7 +40,7 @@ export function createFirestoreStore(uid: string): FirestoreStore {
   const col = (name: keyof AppData) => collection(firestore, 'users', uid, name)
   const ref = (name: keyof AppData, id: string) => doc(firestore, 'users', uid, name, id)
 
-  let data: AppData = { todos: [], projects: [], labels: [], suggestions: [], calendarRules: [] }
+  let data: AppData = { todos: [], projects: [], labels: [], suggestions: [], calendarRules: [], discussions: [] }
   const listeners = new Set<() => void>()
   const loaded = new Set<string>()
   let seeded = false
@@ -56,7 +56,7 @@ export function createFirestoreStore(uid: string): FirestoreStore {
       { includeMetadataChanges: true },
       (snap) => {
         let items = snap.docs.map((d) => map(d.id, d.data())) as AppData[K]
-        if (name === 'projects') items = [...(items as AppData['projects'])].sort((a, b) => a.order - b.order) as AppData[K]
+        if (name === 'projects' || name === 'discussions') items = [...(items as { order: number }[])].sort((a, b) => a.order - b.order) as AppData[K]
         data = { ...data, [name]: items }
 
         // Eerste login: alleen de klantenlijst aanmaken. Pas als de server bevestigt dat er niets is,
@@ -69,13 +69,13 @@ export function createFirestoreStore(uid: string): FirestoreStore {
         }
 
         if (!snap.metadata.fromCache || !snap.empty) loaded.add(name)
-        if (loaded.size === 5) resolveReady()
+        if (loaded.size === 6) resolveReady()
         listeners.forEach((l) => l())
       },
       (err) => {
         console.error(`Lezen mislukt (${name})`, err)
         loaded.add(name)
-        if (loaded.size === 5) resolveReady()
+        if (loaded.size === 6) resolveReady()
       },
     )
   }
@@ -86,6 +86,7 @@ export function createFirestoreStore(uid: string): FirestoreStore {
     listen('labels', normalizeLabel),
     listen('suggestions', normalizeSuggestion),
     listen('calendarRules', normalizeRule),
+    listen('discussions', normalizeDiscussion),
   ]
 
   const nextOrder = () => Math.max(0, ...data.todos.map((t) => t.order)) + 1
@@ -163,6 +164,22 @@ export function createFirestoreStore(uid: string): FirestoreStore {
     },
     deleteRule(id) {
       deleteDoc(ref('calendarRules', id)).catch(fail('regel'))
+    },
+
+    addDiscussion(title) {
+      const newRef = doc(col('discussions'))
+      const order = Math.max(-1, ...data.discussions.map((d) => d.order)) + 1
+      const discussion = { ...buildDiscussion(title, detectProject(title, data.projects), order), id: newRef.id }
+      setDoc(newRef, discussion).catch(fail('groep'))
+      return discussion.id
+    },
+    updateDiscussion(id, patch) {
+      const { id: _ignored, ...rest } = preparePatch(patch)
+      void _ignored
+      updateDoc(ref('discussions', id), { ...rest, updatedAt: nowISO() }).catch(fail('groep'))
+    },
+    deleteDiscussion(id) {
+      deleteDoc(ref('discussions', id)).catch(fail('groep'))
     },
   }
 }

@@ -1512,3 +1512,144 @@ kbd {
     grid-template-columns: 1fr;
   }
 }
+
+.connect__buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* ---------- Om te bespreken ---------- */
+
+.new-group {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 18px;
+  max-width: 460px;
+}
+
+.new-group input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.new-group input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.talk__title {
+  flex: 1;
+  min-width: 0;
+  outline: 0;
+  cursor: text;
+  overflow-wrap: anywhere;
+  border-radius: 4px;
+}
+
+.talk__title:focus {
+  background: var(--hover);
+  box-shadow: 0 0 0 4px var(--hover);
+}
+
+.talk .block__head span {
+  margin-left: 0;
+}
+
+.talk__remove {
+  margin-left: 0;
+}
+
+.check.is-small {
+  width: 16px;
+  height: 16px;
+  margin-top: 4px;
+}
+
+button.check.is-small::after {
+  inset: -12px;
+}
+
+.check__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-full);
+  background: currentColor;
+}
+
+.talk .check.is-small:not(.is-done):not(.is-ghost) {
+  color: var(--line-strong);
+}
+
+.talk button.check.is-small:hover {
+  color: var(--accent);
+}
+
+.item.is-heading {
+  padding-top: 10px;
+}
+
+.item.is-heading .item__title {
+  font-weight: 600;
+}
+
+.more-list {
+  display: grid;
+  gap: 4px;
+}
+
+.more-list button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding: 0 8px;
+  border-radius: var(--r-md);
+  font-size: 16px;
+  color: var(--ink);
+  text-align: left;
+}
+
+.more-list button:hover {
+  background: var(--hover);
+}
+
+@media (max-width: 760px) {
+  .new-group {
+    max-width: none;
+  }
+
+  .new-group input {
+    font-size: 16px; /* voorkomt inzoomen op iPhone */
+  }
+
+  .talk__title {
+    font-size: 16px;
+  }
+
+  .tab {
+    min-width: 0;
+  }
+}
+
+.talk .talk__remove {
+  opacity: 0;
+}
+
+.talk:hover .talk__remove,
+.talk:focus-within .talk__remove {
+  opacity: 1;
+}
+
+@media (max-width: 760px) {
+  .talk .talk__remove {
+    opacity: 0.55;
+  }
+}

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutGrid, ListChecks, Search, Settings, Sparkles } from 'lucide-react'
+import { LayoutGrid, ListChecks, MessagesSquare, Search, Settings, Sparkles } from 'lucide-react'
 import { useAppData } from '../data/store'
 import { useSession } from '../data/session'
 import { openSearch } from '../ui/overlays'
@@ -30,6 +30,10 @@ export function Sidebar() {
       <NavLink to="/klanten" className={active}>
         <LayoutGrid size={18} />
         Per klant
+      </NavLink>
+      <NavLink to="/bespreken" className={active}>
+        <MessagesSquare size={18} />
+        Om te bespreken
       </NavLink>
       <NavLink to="/voorstellen" className={active}>
         <Sparkles size={18} />

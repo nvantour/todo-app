@@ -7,9 +7,11 @@ import { ClientManager } from './components/ClientManager'
 import { SearchDialog } from './components/SearchDialog'
 import { TasksView } from './views/TasksView'
 import { ClientsView } from './views/ClientsView'
+import { DiscussionsView } from './views/DiscussionsView'
 import { SuggestionsView } from './views/SuggestionsView'
 import { SettingsView } from './views/SettingsView'
 import { QuickAddPage } from './views/QuickAddPage'
+import { ConnectPage } from './views/ConnectPage'
 import { LoginScreen } from './views/LoginScreen'
 import { useConnection } from './data/connection'
 import { openSearch, useOverlays } from './ui/overlays'
@@ -24,9 +26,12 @@ export function App() {
     <Routes>
       {/* losstaand: geen zijbalk (Chrome-extensie en snelkoppelingen) */}
       <Route path="/quick-add" element={<QuickAddPage />} />
+      {/* toestemming voor de Claude-app; de server stuurt hierheen vanuit /oauth/authorize */}
+      <Route path="/koppelen" element={<ConnectPage />} />
       <Route element={<Shell />}>
         <Route path="/taken" element={<TasksView />} />
         <Route path="/klanten" element={<ClientsView />} />
+        <Route path="/bespreken" element={<DiscussionsView />} />
         <Route path="/voorstellen" element={<SuggestionsView />} />
         <Route path="/instellingen" element={<SettingsView />} />
         <Route path="*" element={<Navigate to="/taken" replace />} />

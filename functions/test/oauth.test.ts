@@ -106,3 +106,47 @@ describe('OAuth voor de Claude-app', () => {
     expect(r.status).toBe(401)
   })
 })
+
+describe('toestemming via de app (ingelogd met Google)', () => {
+  const viaApp = (ctx: ReturnType<typeof setup>, method: string, body?: unknown, query: Record<string, string> = {}) =>
+    handleOAuth({ method, path: '/oauth/authorize', query, headers: {}, body }, { repo: ctx.repo, auth: ctx.deps.auth, now: () => NOW }, BASE)
+
+  it('stuurt door naar /koppelen in de app in plaats van de token-pagina', async () => {
+    const ctx = setup()
+    const clientId = await register(ctx)
+    const r = await viaApp(ctx, 'GET', undefined, authParams(clientId))
+    expect(r.status).toBe(302)
+    const loc = new URL(r.headers!.Location)
+    expect(loc.origin + loc.pathname).toBe(`${BASE}/koppelen`)
+    expect(loc.searchParams.get('client_id')).toBe(clientId)
+    expect(loc.searchParams.get('client_name')).toBe('Claude')
+    expect(loc.searchParams.get('redirect_host')).toBe('claude.ai')
+    // de noodroute met het persoonlijke token blijft bereikbaar
+    const manual = await viaApp(ctx, 'GET', undefined, authParams(clientId, { manual: '1' }))
+    expect(manual.body).toContain('Persoonlijk token')
+  })
+
+  it('geeft een code af met een geldig ID-token en weigert een ongeldig', async () => {
+    const ctx = setup()
+    const clientId = await register(ctx)
+    const ok = await viaApp(ctx, 'POST', { ...authParams(clientId), id_token: 'eyJ.valid.jwt', action: 'allow' })
+    expect(ok.status).toBe(302)
+    const code = new URL(ok.headers!.Location).searchParams.get('code')!
+    const t = await oauth(ctx, 'POST', '/oauth/token', { grant_type: 'authorization_code', code, client_id: clientId, redirect_uri: REDIRECT, code_verifier: verifier })
+    expect(t.status).toBe(200)
+    expect(await authenticate(`Bearer ${(t.body as { access_token: string }).access_token}`, ctx.deps.auth)).toEqual({ uid: UID, via: 'oauth' })
+
+    const bad = await viaApp(ctx, 'POST', { ...authParams(clientId), id_token: 'eyJ.fout.jwt', action: 'allow' })
+    expect(bad.status).toBe(401)
+    // een persoonlijk token in het id_token-veld geeft geen toegang
+    const sneaky = await viaApp(ctx, 'POST', { ...authParams(clientId), id_token: await personalToken(ctx.repo), action: 'allow' })
+    expect(sneaky.status).toBe(401)
+  })
+
+  it('weigeren stuurt terug met access_denied', async () => {
+    const ctx = setup()
+    const clientId = await register(ctx)
+    const r = await viaApp(ctx, 'POST', { ...authParams(clientId), action: 'deny' })
+    expect(new URL(r.headers!.Location).searchParams.get('error')).toBe('access_denied')
+  })
+})

@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react'
-import type { AppData, CalendarRule, NewTodo, Project, Suggestion, Todo } from '../model/types'
+import type { AppData, CalendarRule, Discussion, NewTodo, Project, Suggestion, Todo } from '../model/types'
 import { detectProject } from '../lib/detect'
 import { seedData } from './seed'
-import { buildProject, buildRule, buildTodo, nowISO, todoFromSuggestion, toggleChanges } from './logic'
+import { buildDiscussion, buildProject, buildRule, buildTodo, nowISO, preparePatch, todoFromSuggestion, toggleChanges } from './logic'
 
 // Blijft hier beschikbaar: docs/koppelingen.md verwijst naar buildTodo() in dit bestand.
 export { buildTodo }
@@ -28,6 +28,10 @@ export interface Store {
   addRule(input?: Partial<CalendarRule>): string
   updateRule(id: string, patch: Partial<CalendarRule>): void
   deleteRule(id: string): void
+  /** "Om te bespreken": een groep met punten. De klant wordt uit de naam herkend. */
+  addDiscussion(title: string): string
+  updateDiscussion(id: string, patch: Partial<Discussion>): void
+  deleteDiscussion(id: string): void
 }
 
 const KEY = 'todo-app:v2'
@@ -39,7 +43,11 @@ export function createLocalStore(): Store {
   function load(): AppData {
     try {
       const raw = localStorage.getItem(KEY)
-      if (raw) return JSON.parse(raw) as AppData
+      // oudere opslag heeft nog geen 'discussions': val terug op een lege lijst
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<AppData>
+        return { ...(saved as AppData), discussions: saved.discussions ?? [] }
+      }
     } catch {
       /* opslag niet beschikbaar: start met voorbeelddata */
     }
@@ -120,8 +128,25 @@ export function createLocalStore(): Store {
     deleteRule(id) {
       commit({ ...data, calendarRules: data.calendarRules.filter((r) => r.id !== id) })
     },
+
+    addDiscussion(title) {
+      const order = Math.max(-1, ...data.discussions.map((d) => d.order)) + 1
+      const discussion = buildDiscussion(title, detectProject(title, data.projects), order)
+      commit({ ...data, discussions: [...data.discussions, discussion] })
+      return discussion.id
+    },
+    updateDiscussion(id, patch) {
+      commit({
+        ...data,
+        discussions: data.discussions.map((d) => (d.id === id ? { ...d, ...preparePatch(patch), id, updatedAt: nowISO() } : d)),
+      })
+    },
+    deleteDiscussion(id) {
+      commit({ ...data, discussions: data.discussions.filter((d) => d.id !== id) })
+    },
   }
 }
+
 
 // De schermen gebruiken altijd `store`; welke opslag daaronder zit, wisselt met setBackend().
 // Standaard is dat de lokale opslag; na inloggen wordt het Firestore.
@@ -155,6 +180,9 @@ export const store: Store = {
   addRule: (input) => backend.addRule(input),
   updateRule: (id, patch) => backend.updateRule(id, patch),
   deleteRule: (id) => backend.deleteRule(id),
+  addDiscussion: (title) => backend.addDiscussion(title),
+  updateDiscussion: (id, patch) => backend.updateDiscussion(id, patch),
+  deleteDiscussion: (id) => backend.deleteDiscussion(id),
 }
 
 export function useAppData(): AppData {

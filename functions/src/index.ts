@@ -187,7 +187,7 @@ export const mcp = onRequest(
 export const oauth = onRequest({ region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 30, invoker: 'public' }, async (req, res) => {
   cors(req, res)
   if (req.method === 'OPTIONS') return void res.status(204).end()
-  const r = await handleOAuth({ ...toApiRequest(req), path: normalizePath(req.path) }, { repo }, baseUrl(req))
+  const r = await handleOAuth({ ...toApiRequest(req), path: normalizePath(req.path) }, { repo, auth: authDeps() }, baseUrl(req))
   send(res, r)
 })
 

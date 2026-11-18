@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { ApiRequest, ApiResponse } from './api'
+import { authenticate, type AuthDeps } from './auth'
 import type { OAuthClient, Repo, TokenRecord } from './repo'
 import { generateToken, hashToken, randomId } from './tokens'
 
@@ -9,10 +10,13 @@ import { generateToken, hashToken, randomId } from './tokens'
  * - /.well-known/oauth-authorization-server (RFC 8414)
  * - /oauth/register  (Dynamic Client Registration, RFC 7591, alleen publieke clients)
  * - /oauth/authorize (toestemmingspagina) en /oauth/token (code + PKCE S256, refresh met rotatie)
- * De inlog op de toestemmingspagina is het plakken van een persoonlijk token uit de app.
+ * Toestemming geef je in de app zelf (/koppelen), waar je al met Google bent ingelogd; de app stuurt je
+ * ID-token mee. Zonder `auth` (tests, of als noodroute) is er de pagina waar je een persoonlijk token plakt.
  */
 export interface OAuthDeps {
   repo: Repo
+  /** Controle van het ID-token van de app. Is dit gezet, dan loopt toestemming via de app. */
+  auth?: AuthDeps
   now?: () => Date
 }
 
@@ -101,16 +105,33 @@ export async function handleOAuth(req: ApiRequest, deps: OAuthDeps, base: string
     const p = method === 'GET' ? (req.query as Record<string, unknown>) : form
     const v = await validateAuthRequest(p, deps.repo)
     if (v.error !== undefined) return page(400, errorPage(v.error))
-    if (method === 'GET') return page(200, consentPage(v.client.name, p, ''))
+    if (method === 'GET') {
+      // In de app toestemming geven (daar ben je al ingelogd); ?manual=1 toont de pagina met het persoonlijke token.
+      if (deps.auth && s(p.manual) !== '1') {
+        const params: Record<string, string> = { client_name: v.client.name, redirect_host: new URL(v.redirectUri).host }
+        for (const k of HIDDEN) params[k] = s(p[k])
+        return redirect(`${base}/koppelen`, params)
+      }
+      return page(200, consentPage(v.client.name, p, ''))
+    }
     if (s(p.action) === 'deny') return redirect(v.redirectUri, { error: 'access_denied', state: s(p.state) })
-    const record = await deps.repo.findToken(hashToken(s(p.token).trim()))
-    if (!record || record.kind !== 'personal' || (record.expiresAt && new Date(record.expiresAt) <= now)) {
-      return page(401, consentPage(v.client.name, p, 'Dit token klopt niet. Maak een nieuw persoonlijk token in de app en plak dat hier.'))
+    let uid: string
+    if (s(p.id_token)) {
+      // toestemming vanuit de app: het ID-token van de ingelogde gebruiker
+      const who = deps.auth ? await authenticate(`Bearer ${s(p.id_token)}`, deps.auth) : null
+      if (!who || who.via !== 'idToken') return page(401, errorPage('Je inlog is verlopen of dit account mag niet koppelen. Open de app, log in en probeer het opnieuw.'))
+      uid = who.uid
+    } else {
+      const record = await deps.repo.findToken(hashToken(s(p.token).trim()))
+      if (!record || record.kind !== 'personal' || (record.expiresAt && new Date(record.expiresAt) <= now)) {
+        return page(401, consentPage(v.client.name, p, 'Dit token klopt niet. Maak een nieuw persoonlijk token in de app en plak dat hier.'))
+      }
+      uid = record.uid
     }
     const code = randomId(32)
     await deps.repo.saveCode({
       hash: hashToken(code),
-      uid: record.uid,
+      uid,
       clientId: v.client.id,
       redirectUri: v.redirectUri,
       codeChallenge: s(p.code_challenge),

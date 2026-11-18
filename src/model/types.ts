@@ -102,12 +102,32 @@ export interface CalendarRule {
   enabled: boolean
 }
 
+/** Een punt op een overlegtje; een regel die eindigt op ':' is een tussenkopje (geen vinkje). */
+export interface DiscussionItem {
+  id: string
+  text: string
+  done: boolean
+  doneAt: string | null
+}
+
+/** Een groep "om te bespreken": een klant of persoon met korte punten. */
+export interface Discussion {
+  id: string
+  title: string
+  projectId: string | null
+  items: DiscussionItem[]
+  order: number
+  createdAt: string
+  updatedAt: string
+}
+
 export interface AppData {
   todos: Todo[]
   projects: Project[]
   labels: Label[]
   suggestions: Suggestion[]
   calendarRules: CalendarRule[]
+  discussions: Discussion[]
 }
 
 export type NewTodo = Pick<Todo, 'title'> & Partial<Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>>
