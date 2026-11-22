@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarDays, Check, MessageSquare, TriangleAlert } from 'lucide-react'
+import { CalendarDays, Check, Mail, MessageSquare, TriangleAlert } from 'lucide-react'
 import { apiCall, hasServer, ServerError } from '../../data/server'
 import { useSession } from '../../data/session'
 
@@ -18,6 +18,7 @@ interface Status {
   needsReauth?: boolean
   calendar?: boolean
   chat?: boolean
+  mail?: boolean
   lastCalendarScan?: Scan
   lastChatScan?: Scan
 }
@@ -32,7 +33,7 @@ function returnMessage(): { text: string; bad: boolean } | null {
   const reason = params.get('reden')
   history.replaceState(null, '', window.location.pathname)
   if (result === 'ok') return { text: 'Gekoppeld. De eerste scan draait vannacht of 7:00; je kunt hem ook nu starten.', bad: false }
-  if (result === 'gedeeltelijk') return { text: 'Gekoppeld, maar je hebt niet alles toegestaan. Agenda of Chat werkt daardoor niet. Koppel opnieuw en vink alles aan.', bad: true }
+  if (result === 'gedeeltelijk') return { text: 'Gekoppeld, maar je hebt niet alles toegestaan. Agenda, Chat of Mail werkt daardoor niet. Koppel opnieuw en vink alles aan.', bad: true }
   if (result === 'geweigerd') return { text: 'Je hebt de koppeling geweigerd bij Google. Er is niets veranderd.', bad: true }
   return { text: reason ? `Koppelen is niet gelukt: ${reason}` : 'Koppelen is niet gelukt. Probeer het opnieuw.', bad: true }
 }
@@ -112,7 +113,7 @@ export function GoogleConnection() {
   if (!hasServer() || session.status === 'local') {
     return (
       <section className="settings__group" aria-labelledby="google">
-        <h2 id="google">Agenda en Chat</h2>
+        <h2 id="google">Google: agenda, chat en mail</h2>
         <div className="settings__empty">Koppelen met Google werkt zodra de app met de server is verbonden.</div>
       </section>
     )
@@ -120,11 +121,11 @@ export function GoogleConnection() {
 
   return (
     <section className="settings__group" aria-labelledby="google">
-      <h2 id="google">Agenda en Chat</h2>
+      <h2 id="google">Google: agenda, chat en mail</h2>
       <p className="hint-text">
         Na koppelen bekijkt de app elke ochtend je agenda van de komende twee weken en twee keer per werkdag je Google Chat. Wat er gevonden wordt, komt
         als <Link to="/voorstellen">voorstel</Link> in je inbox; er wordt nooit zelf een taak gemaakt. De app leest je agenda en chats alleen en kan
-        afspraken aanmaken om taken in te plannen.
+        afspraken aanmaken om taken in te plannen. Met dezelfde koppeling werkt ook de <Link to="/mail">Mail</Link>-tab.
       </p>
 
       {note && (
@@ -139,7 +140,7 @@ export function GoogleConnection() {
 
       {status?.configured && !status.connected && (
         <button className="btn is-primary" onClick={() => void connect()} disabled={busy !== null}>
-          <CalendarDays size={15} /> Agenda en Chat koppelen
+          <CalendarDays size={15} /> Google koppelen
         </button>
       )}
 
@@ -167,6 +168,14 @@ export function GoogleConnection() {
 
           <ScanLine icon={<CalendarDays size={14} />} name="Agenda" ok={status.calendar} scan={status.lastCalendarScan} />
           <ScanLine icon={<MessageSquare size={14} />} name="Google Chat" ok={status.chat} scan={status.lastChatScan} />
+          <div className="conn__row">
+            <div>
+              <div className="conn__name">
+                <Mail size={14} /> Mail {status.mail ? <span className="pill is-ok"><Check size={12} /> Toegestaan</span> : <span className="pill is-bad">Geen toestemming</span>}
+              </div>
+              <div className="hint-text">{status.mail ? 'Je mail staat in de Mail-tab.' : 'Koppel opnieuw en sta Gmail toe om je mail in de app te openen.'}</div>
+            </div>
+          </div>
 
           {!status.needsReauth && (
             <div className="conn__actions">
@@ -176,7 +185,7 @@ export function GoogleConnection() {
               <button className="btn" onClick={() => void scan('chat')} disabled={busy !== null || !status.chat}>
                 {busy === 'chat' ? 'Bezig…' : 'Chat nu scannen'}
               </button>
-              {(!status.calendar || !status.chat) && (
+              {(!status.calendar || !status.chat || !status.mail) && (
                 <button className="btn" onClick={() => void connect()} disabled={busy !== null}>
                   Opnieuw koppelen
                 </button>

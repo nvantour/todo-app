@@ -262,8 +262,9 @@ async function googleCallback(req: ApiRequest, deps: ApiDeps): Promise<ApiRespon
 async function google(method: string, path: string, auth: AuthResult, deps: ApiDeps): Promise<ApiResponse> {
   const g = need(deps.google, 'Koppelen met Google is nog niet ingesteld op de server.')
   if (path === '/google/status' && method === 'GET') return json(200, await g.status(auth.uid))
-  // koppelen en ontkoppelen alleen vanuit de app zelf, net als tokens
+  // koppelen, ontkoppelen en een mail-toegangstoken alleen vanuit de app zelf, net als tokens
   if (auth.via !== 'idToken') throw new HttpError(403, 'forbidden', 'Google koppel je alleen vanuit de app zelf.')
+  if (path === '/google/token' && method === 'GET') return json(200, await g.mailToken(auth.uid))
   if (path === '/google/connect' && method === 'POST') {
     const base = deps.baseUrl ?? ''
     return json(200, { url: await g.startConnect(auth.uid, `${base}/api/google/callback`) })

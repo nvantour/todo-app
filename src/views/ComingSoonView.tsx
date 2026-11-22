@@ -29,18 +29,3 @@ export function MeetingsView() {
     </ComingSoonView>
   )
 }
-
-export const MAIL_CLIENT_URL = 'https://email-client-nino.web.app'
-
-export function MailView() {
-  return (
-    <ComingSoonView title="Mail" intro="Je mail, naast je taken en bespreekpunten.">
-      Tot die tijd werkt de losse mailclient gewoon.
-      <p>
-        <a className="btn" href={MAIL_CLIENT_URL} target="_blank" rel="noreferrer">
-          Open de mailclient
-        </a>
-      </p>
-    </ComingSoonView>
-  )
-}

@@ -14,7 +14,10 @@ export const SCOPE_CALENDAR = 'https://www.googleapis.com/auth/calendar.events.o
 export const SCOPE_CHAT_MESSAGES = 'https://www.googleapis.com/auth/chat.messages.readonly'
 export const SCOPE_CHAT_SPACES = 'https://www.googleapis.com/auth/chat.spaces.readonly'
 export const SCOPE_CHAT_MEMBERS = 'https://www.googleapis.com/auth/chat.memberships.readonly'
-export const GOOGLE_SCOPES = ['openid', 'email', SCOPE_CALENDAR, SCOPE_CHAT_MESSAGES, SCOPE_CHAT_SPACES, SCOPE_CHAT_MEMBERS]
+/** Mail in het werk-OS: lezen, labels, versturen (modify) en handtekening, afwezigheid en regels (settings.basic). */
+export const SCOPE_GMAIL_MODIFY = 'https://www.googleapis.com/auth/gmail.modify'
+export const SCOPE_GMAIL_SETTINGS = 'https://www.googleapis.com/auth/gmail.settings.basic'
+export const GOOGLE_SCOPES = ['openid', 'email', SCOPE_CALENDAR, SCOPE_CHAT_MESSAGES, SCOPE_CHAT_SPACES, SCOPE_CHAT_MEMBERS, SCOPE_GMAIL_MODIFY, SCOPE_GMAIL_SETTINGS]
 
 export interface GoogleClientConfig {
   clientId: string

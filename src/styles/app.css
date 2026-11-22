@@ -1765,3 +1765,26 @@ button.check.is-small::after {
     opacity: 0.55;
   }
 }
+
+/* ---------- Mail (volle breedte, de mail zelf staat in een Shadow DOM) ---------- */
+
+.main.is-full {
+  padding: 0;
+  overflow: hidden;
+}
+
+.mail-host {
+  display: block;
+  height: 100%;
+}
+
+@media (max-width: 760px) {
+  .main.is-full {
+    padding: env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 64px);
+  }
+
+  /* de microfoonknop zou over de knoppen van het schrijfvenster vallen */
+  .shell.is-mail .dock {
+    display: none;
+  }
+}

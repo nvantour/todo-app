@@ -1,0 +1,236 @@
+/* Overgenomen uit prototype.html: papier, inkt en één markeerstift.
+   Drie kolommen op hetzelfde vel, gescheiden door haarlijnen; op telefoon één kolom tegelijk. */
+:host{
+  --bg:#fbfbf9; --surface:#ffffff; --ink:#141412; --muted:#6d6d66; --line:#e4e4de; --sel:#f0f0eb;
+  --mark:#ffe564; --mark-ink:#141412; --dot:#f2c200;
+  --ui:"Poppins","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --read:"Poppins","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --gl:max(16px, env(safe-area-inset-left, 0px)); --gr:max(16px, env(safe-area-inset-right, 0px));
+}
+@media (prefers-color-scheme: dark){ :host(:not([data-theme="light"])){
+  --bg:#131312; --surface:#1a1a18; --ink:#ecece6; --muted:#96968d; --line:#2b2b27; --sel:#21211e;
+  --mark:#57490a; --mark-ink:#ffe896; --dot:#ffd60a; color-scheme:dark } }
+:host([data-theme="dark"]){
+  --bg:#131312; --surface:#1a1a18; --ink:#ecece6; --muted:#96968d; --line:#2b2b27; --sel:#21211e;
+  --mark:#57490a; --mark-ink:#ffe896; --dot:#ffd60a; color-scheme:dark }
+
+*{box-sizing:border-box}
+:host{display:block;height:100%;container:mail/inline-size;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
+button:disabled{cursor:default;opacity:.6}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:3px}
+.link{text-decoration:underline;text-decoration-color:var(--muted);text-underline-offset:3px;text-decoration-thickness:1px;font-size:13px}
+.link:hover{text-decoration-color:var(--ink)}
+.hint{color:var(--muted);font-size:13px;max-width:60ch;margin:0}
+.error{background:var(--mark);color:var(--mark-ink);padding:8px 10px;margin:0;font-size:13px}
+.btn{padding:5px 9px;border-radius:4px;font-weight:500;font-size:13px;white-space:nowrap}
+.btn:hover{background:var(--sel)}
+.btn.pri{background:var(--ink);color:var(--bg);padding:7px 14px}
+.btn.pri:hover{opacity:.85}
+.quiet{color:var(--muted);text-align:left;padding:4px 0}
+.quiet:hover{color:var(--ink)}
+
+#app{height:100%}
+.app{display:grid;grid-template-columns:208px 348px minmax(0,1fr)}
+.pane{min-width:0;overflow-y:auto;height:100%}
+.solo{overflow-y:auto}
+.login{max-width:420px;margin:0 auto;padding:18vh var(--gr) 40px var(--gl);display:flex;flex-direction:column;gap:16px;align-items:flex-start}
+
+/* navigatie */
+#nav{display:flex;flex-direction:column;gap:22px;padding-block:22px 18px;padding-left:max(22px, env(safe-area-inset-left, 0px));padding-right:18px;border-right:1px solid var(--line)}
+.brand{font:italic 500 20px/1 var(--ui);letter-spacing:-.01em;margin:0}
+.navlist{display:flex;flex-direction:column}
+.navlist button{display:block;width:100%;padding:4px 0;text-align:left;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.navlist button:hover{color:var(--ink)}
+.navlist button.on{color:var(--ink);font-weight:600}
+
+.label{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+
+/* lijst */
+#list{border-right:1px solid var(--line)}
+.head{position:sticky;top:0;z-index:2;display:flex;flex-direction:column;gap:10px;padding:20px 20px 12px;background:var(--bg)}
+.hrow{display:flex;align-items:baseline;gap:10px}
+.head h1{font:500 21px/1.1 var(--read);letter-spacing:-.01em;margin:0;flex:1}
+.mob{display:none}
+.icon{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:4px;color:var(--ink);align-self:center}
+.icon.mob{display:none}
+.icon:hover{background:var(--sel)}
+.item{display:grid;gap:1px;width:100%;text-align:left;padding:12px 20px 13px;border-top:1px solid var(--line)}
+.item:hover{background:var(--sel)}
+.item.on{background:var(--sel)}
+.item .r1{display:flex;gap:8px;align-items:baseline}
+.item .who{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:13px}
+.item .time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.item .sub,.item .snip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .sub{font:400 16px/1.35 var(--read)}
+.item .snip{color:var(--muted);font-size:13px}
+.item.unread .who{color:var(--ink);font-weight:600}
+.item.unread .sub{font-weight:600}
+.dot{display:inline-block;width:9px;height:9px;background:var(--dot);margin-right:8px;vertical-align:1px}
+.cnt{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cnt::before{content:"("} .cnt::after{content:")"}
+.none{padding:28px 20px;color:var(--muted)}
+.relogin{display:flex;flex-direction:column;gap:12px;align-items:flex-start;padding:20px;border-top:1px solid var(--line)}
+.relogin p{margin:0;max-width:44ch}
+
+/* lezen */
+#read{padding-block:18px 56px;padding-left:44px;padding-right:max(44px, env(safe-area-inset-right, 0px))}
+.doc{max-width:680px;display:flex;flex-direction:column;gap:18px}
+.doc h2{font:500 28px/1.2 var(--read);letter-spacing:-.015em;margin:0;text-wrap:balance;overflow-wrap:anywhere}
+.top{display:none}
+.empty{color:var(--muted);padding-top:60px;font:italic 400 16px var(--read)}
+.titleblock{display:flex;flex-direction:column;gap:8px;padding-top:10px}
+.meta{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;color:var(--muted);font-size:13px}
+.thread{display:flex;flex-direction:column;border-bottom:1px solid var(--line)}
+.msg{border-top:1px solid var(--line);padding:10px 0}
+.msg:has(.body){padding:16px 0 20px}
+.mh{display:flex;gap:10px;align-items:baseline;width:100%;text-align:left}
+.mh b{font-weight:600;white-space:nowrap}
+.msg.me .mh b{font-weight:500;font-style:italic}
+.mh .pre{flex:1;min-width:0;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mh .time{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.body{white-space:pre-line;padding-top:10px;max-width:62ch;font:400 16px/1.62 var(--read);overflow-wrap:anywhere}
+.atts{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding-top:12px}
+.att{display:inline-flex;gap:6px;align-items:center;font-size:12px;padding:3px 8px;border:1px solid var(--line);border-radius:3px}
+
+@container mail (max-width:860px){ .app{grid-template-columns:180px 290px minmax(0,1fr)} #read{padding-left:28px;padding-right:max(28px, env(safe-area-inset-right, 0px))} }
+@container mail (max-width:700px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  #nav,#list,#read{display:none}
+  #app[data-pane=list] #list, #app[data-pane=read] #read{display:block}
+  #app[data-pane=nav] #nav{display:flex}
+  #nav{border:0;padding-left:var(--gl);padding-right:var(--gr)}
+  .navlist button{padding:7px 0;font-size:15px}
+  #list{border:0}
+  .head,.item,.none,.relogin{padding-left:var(--gl);padding-right:var(--gr)}
+  .hrow{align-items:center}
+  #read{padding-left:var(--gl);padding-right:var(--gr);padding-block:8px 40px}
+  .doc h2{font-size:24px}
+  .icon.mob{display:inline-grid}
+  /* terug-pijl op een eigen regel, niet tussen de e-mailacties */
+  .top{display:flex;margin:0 0 -10px -8px}
+}
+@media (prefers-reduced-motion:no-preference){ .item,.btn,.navlist button{transition:background .12s,color .12s} }
+.logins{display:flex;flex-wrap:wrap;gap:8px}
+.navlist .acc .prov{display:block;font-size:12px;color:var(--muted);padding:0 0 6px}
+.navlist .acc .prov .quiet{display:inline;width:auto;padding:0;font-size:12px}
+
+/* acties, mappen en schrijven (uit prototype.html) */
+.btn.on{background:var(--mark);color:var(--mark-ink)}
+.btn.block{width:100%;text-align:center;padding:8px 11px}
+.btn.pri.block{padding:8px 11px}
+.field{flex:1;min-width:0;padding:6px 10px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font:inherit;color:inherit}
+.mapform{display:flex;gap:6px;padding:4px 0}
+.chips{display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:4px}
+.chips:empty{display:none}
+.chip{font-size:12px;color:var(--muted);white-space:nowrap}
+.bar{display:flex;flex-wrap:wrap;gap:2px;align-items:center;margin-left:-9px}
+.bar .btn.pri{margin:0 6px 0 9px}
+.menu{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;padding:8px 10px;background:var(--sel);font-size:13px}
+.menu>span{margin-right:4px}
+.menu .btn{background:var(--surface)}
+.menu .btn.on{background:var(--mark)}
+.reply{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:4px;background:var(--surface)}
+.reply:focus-within{border-color:var(--muted)}
+.modes{display:flex;flex-wrap:wrap;gap:14px;padding:10px 14px 2px}
+.tab{font-size:13px;color:var(--muted);padding-bottom:2px;border-bottom:1.5px solid transparent}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--ink);font-weight:500;border-color:var(--ink)}
+.frow{display:flex;gap:10px;align-items:baseline;padding:8px 14px;border-bottom:1px solid var(--line)}
+.frow label{color:var(--muted);font-size:13px;min-width:70px}
+.frow input{flex:1;min-width:0;border:0;background:none;outline:0;padding:0;font:inherit;color:inherit}
+.reply textarea{border:0;background:none;resize:vertical;min-height:110px;field-sizing:content;width:100%;outline:0;padding:14px;font:400 16px/1.62 var(--read);color:inherit}
+.sig{white-space:pre-line;color:var(--muted);padding:0 14px 12px;font:400 15px/1.55 var(--read)}
+.based{font-size:12px;color:var(--muted);padding:0 14px 12px}
+.reply .row{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);font-size:13px}
+.sp{flex:1}
+#toast{position:fixed;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom, 0px));background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:4px;font-size:13px;max-width:calc(100% - 32px);display:flex;gap:14px;align-items:center}
+#toast[hidden]{display:none}
+#toast button{color:var(--bg);font-weight:600;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.icon.mob+.icon.mob{margin-left:-6px}
+
+/* zoeken en selecteren (uit prototype.html) */
+#searchform{display:flex}
+#searchform .field{flex:1;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:5px 0;background:none;outline:0}
+#searchform .field:focus{border-color:var(--ink)}
+.clearq{align-self:flex-start}
+.pick{display:inline-grid;place-items:center;width:14px;height:14px;border:1.5px solid var(--muted);border-radius:2px;margin-right:8px;vertical-align:-2px;font-size:10px;line-height:1;color:var(--bg)}
+.pick.on{background:var(--ink);border-color:var(--ink)}
+.bulk{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;font-size:13px}
+.bulk>span{flex-basis:100%;color:var(--muted)}
+.bulk .btn{border:1px solid var(--line)}
+.bulk select{padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font:inherit;color:inherit}
+.meta .chip{color:var(--ink);background:var(--mark);padding:0 4px}
+
+/* opgeslagen en herinneringen (uit prototype.html) */
+.chip.a{color:var(--ink);font-weight:500}
+.chip.w{background:var(--mark);color:var(--mark-ink);padding:0 4px;font-weight:500}
+.btn.ghost{color:var(--muted);font-weight:400}
+.menu input[type=datetime-local],.reply .row select,.reply .row input[type=datetime-local]{padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font:inherit;color:inherit;font-size:13px}
+
+/* regels en todo (uit prototype.html) */
+.app.wide{grid-template-columns:208px minmax(0,1fr)}
+.app.wide #list{display:none}
+.navlist button{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.navlist button>span:first-child{overflow:hidden;text-overflow:ellipsis}
+.navlist .n{font-size:12px;font-variant-numeric:tabular-nums;font-weight:400;color:var(--muted)}
+.ruleform{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;background:var(--sel)}
+.ruleform select,.ruleform input[type=text]{padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font:inherit;font-size:13px;color:inherit;max-width:100%}
+.ruleform input[type=text]{flex:1;min-width:120px}
+.ruleform label{display:flex;gap:6px;align-items:center;font-size:13px}
+.rule{display:flex;gap:10px;align-items:baseline;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line)}
+.rule.other{color:var(--muted)}
+.todo{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;padding:12px 20px;border-top:1px solid var(--line);align-items:center}
+.todo input[type=checkbox]{width:15px;height:15px;accent-color:var(--ink)}
+.todo input[type=text]{border:0;background:none;padding:2px 0;width:100%;font:400 16px/1.35 var(--read);color:inherit;outline:0}
+.todo.done input[type=text]{text-decoration:line-through;color:var(--muted)}
+.todo .src{grid-column:2;font-size:12px;color:var(--muted)}
+@container mail (max-width:860px){ .app.wide{grid-template-columns:180px minmax(0,1fr)} }
+@container mail (max-width:700px){
+  .app.wide{grid-template-columns:minmax(0,1fr)}
+  #app[data-pane=list].wide #read{display:block}
+  .todo{padding-left:var(--gl);padding-right:var(--gr)}
+  .navlist .acc button{display:block}
+}
+.rule .hint{white-space:nowrap}
+.rule{flex-wrap:wrap}
+.rule>span:first-child{flex:1 1 240px;min-width:0;overflow-wrap:anywhere}
+a.btn{color:inherit;text-decoration:none;display:inline-block}
+
+/* sneltoetsen (uit prototype.html) */
+.navkeys{margin-top:auto;padding-top:12px}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;margin:8px 0 0;font-size:12px;color:var(--muted);align-items:baseline}
+.keys dt,.keys dd{margin:0}
+.keys kbd{font:500 11px var(--ui);border:1px solid var(--line);border-radius:3px;padding:0 5px;color:var(--ink);white-space:nowrap}
+.cstatus{font-size:12px;color:var(--muted);margin-right:6px}
+
+/* HTML-mails en bijlagen */
+.mailhtml{display:block;width:100%;min-height:60px;border:0;border-radius:3px;background:#fff;margin-top:10px}
+.mailopts{font-size:12px;color:var(--muted);padding-top:6px}
+button.att{cursor:pointer;background:none;font:inherit;font-size:12px;color:inherit}
+button.att:hover{border-color:var(--ink)}
+.att button{margin-left:4px;color:var(--muted);font-size:13px;line-height:1}
+.att button:hover{color:var(--ink)}
+.reply .row label.btn{cursor:pointer}
+
+/* instellingen en afwezigheid (uit prototype.html) */
+.ooo{font-size:12px;font-weight:500;padding:5px 8px;background:var(--mark);color:var(--mark-ink);text-align:left;border-radius:3px}
+.set{display:flex;flex-direction:column;gap:12px;padding-top:16px;border-top:1px solid var(--ink)}
+.set h3{font:500 11px var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.set .check{display:flex;gap:8px;align-items:center;font-size:14px}
+.set .fld{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.set .fld .field{color:var(--ink)}
+.set textarea{width:100%;min-height:110px;padding:10px 12px;border:1px solid var(--line);border-radius:4px;background:var(--surface);resize:vertical;font:400 15px/1.55 var(--read);color:var(--ink)}
+.vdates{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--muted)}
+.vdates input{display:block;margin-top:4px;padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font:inherit;color:var(--ink)}
+
+/* lijst zoals Apple Mail (wens Nino 2026-11-18): afzender groot en vet, onderwerp eronder in gewone letter */
+.item .who{font:600 16px/1.3 var(--ui);color:var(--ink)}
+.item .r1{align-items:baseline}
+.item .sub{font:400 14px/1.35 var(--read);color:var(--ink)}
+.item.unread .who,.item.unread .sub{font-weight:600}
+.item:not(.unread) .who{font-weight:600}
+.item:not(.unread) .sub{font-weight:400}
+.plan{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);font-size:13px}
+.plan input{padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font:inherit;color:inherit}
+.item.sched{cursor:default}

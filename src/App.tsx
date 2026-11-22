@@ -1,12 +1,13 @@
 import { useEffect } from 'react'
-import { Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar } from './components/Sidebar'
 import { MobileNav } from './components/MobileNav'
 import { TaskDetail } from './components/TaskDetail'
 import { ClientManager } from './components/ClientManager'
 import { SearchDialog } from './components/SearchDialog'
 import { TodayView } from './views/TodayView'
-import { MailView, MeetingsView } from './views/ComingSoonView'
+import { MeetingsView } from './views/ComingSoonView'
+import { MailView } from './views/MailView'
 import { TasksView } from './views/TasksView'
 import { ClientsView } from './views/ClientsView'
 import { DiscussionsView } from './views/DiscussionsView'
@@ -47,6 +48,8 @@ export function App() {
 
 function Shell() {
   const navigate = useNavigate()
+  // de mail gebruikt de volle breedte en hoogte, zonder de leeskolom
+  const mail = useLocation().pathname.startsWith('/mail')
   const { clients } = useOverlays()
 
   useEffect(() => {
@@ -57,25 +60,30 @@ function Shell() {
         openSearch()
         return
       }
-      // Q springt naar de lege regel onder "Vandaag" bij Taken
-      const el = e.target as HTMLElement
+      // Q springt naar de lege regel onder "Vandaag" bij Taken.
+      // composedPath: in de mail (Shadow DOM) is e.target de host, niet het veld waarin je typt.
+      const el = (e.composedPath()[0] ?? e.target) as HTMLElement
       const typing = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable
-      if (e.key.toLowerCase() !== 'q' || typing || e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key.toLowerCase() !== 'q' || typing || e.metaKey || e.ctrlKey || e.altKey || mail) return
       e.preventDefault()
       navigate('/taken')
       window.setTimeout(() => document.getElementById('add-now')?.focus(), 0)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [navigate])
+  }, [navigate, mail])
 
   return (
-    <div className="shell">
+    <div className={`shell${mail ? ' is-mail' : ''}`}>
       <Sidebar />
-      <main className="main">
-        <div className="content">
+      <main className={`main${mail ? ' is-full' : ''}`}>
+        {mail ? (
           <Outlet />
-        </div>
+        ) : (
+          <div className="content">
+            <Outlet />
+          </div>
+        )}
       </main>
       <MobileNav />
       <TaskDetail />

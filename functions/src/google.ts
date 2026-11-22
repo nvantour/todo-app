@@ -6,6 +6,8 @@ import {
   SCOPE_CALENDAR,
   SCOPE_CHAT_MESSAGES,
   SCOPE_CHAT_SPACES,
+  SCOPE_GMAIL_MODIFY,
+  SCOPE_GMAIL_SETTINGS,
   buildAuthUrl,
   exchangeCode,
   fetchUserInfo,
@@ -38,12 +40,16 @@ export interface GoogleStatus {
   /** Welke onderdelen werken, op basis van wat Google echt heeft toegekend. */
   calendar?: boolean
   chat?: boolean
+  /** Mail in het werk-OS (Gmail lezen en versturen). */
+  mail?: boolean
   lastCalendarScan?: { at: string; found: number; created: number; error?: string }
   lastChatScan?: { at: string; found: number; created: number; error?: string }
 }
 
 export const hasCalendar = (c: Pick<GoogleConnection, 'scopes'>) => c.scopes.includes(SCOPE_CALENDAR)
 export const hasChat = (c: Pick<GoogleConnection, 'scopes'>) => c.scopes.includes(SCOPE_CHAT_MESSAGES) && c.scopes.includes(SCOPE_CHAT_SPACES)
+
+export const hasMail = (c: Pick<GoogleConnection, 'scopes'>) => c.scopes.includes(SCOPE_GMAIL_MODIFY) && c.scopes.includes(SCOPE_GMAIL_SETTINGS)
 
 export class GoogleService {
   private fetchImpl: Fetch
@@ -104,6 +110,7 @@ export class GoogleService {
       needsReauth: conn.needsReauth === true,
       calendar: hasCalendar(conn),
       chat: hasChat(conn),
+      mail: hasMail(conn),
       lastCalendarScan: state.lastCalendarScan,
       lastChatScan: state.lastChatScan,
     }
@@ -141,6 +148,18 @@ export class GoogleService {
       }
       throw e
     }
+  }
+
+  /**
+   * Toegangstoken voor de mail in de app zelf (de browser praat rechtstreeks met Gmail).
+   * Alleen als de koppeling de Gmail-rechten heeft; het verversingstoken verlaat de server nooit.
+   */
+  async mailToken(uid: string): Promise<{ accessToken: string; expiresAt: string; email: string }> {
+    const conn = await this.connection(uid)
+    if (!hasMail(conn)) throw new HttpError(409, 'google_mail_scope', 'Mail is nog niet toegestaan. Koppel Google opnieuw in Instellingen en sta Gmail toe.')
+    const accessToken = await this.accessToken(uid)
+    const expires = this.access.get(uid)?.expires ?? this.now().getTime() + 5 * 60_000
+    return { accessToken, expiresAt: new Date(expires).toISOString(), email: conn.email }
   }
 
   async api(uid: string): Promise<GoogleApi> {
