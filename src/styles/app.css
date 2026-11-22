@@ -500,6 +500,16 @@ button.check:active {
   text-overflow: ellipsis;
 }
 
+/* bron met een link: klikbaar (mail opent in de Mail-tab, Airtable e.d. in een nieuw tabblad) */
+.tag.is-source.is-link {
+  cursor: pointer;
+}
+
+.tag.is-source.is-link:hover span {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .tag.is-plain {
   color: var(--ink-3);
 }

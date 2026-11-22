@@ -229,8 +229,10 @@ button.att:hover{border-color:var(--ink)}
 .item .r1{align-items:baseline}
 .item .sub{font:400 14px/1.35 var(--read);color:var(--ink)}
 .item.unread .who,.item.unread .sub{font-weight:600}
-.item:not(.unread) .who{font-weight:600}
-.item:not(.unread) .sub{font-weight:400}
+.item:not(.unread) .who,.item:not(.unread) .sub{font-weight:400}
+/* ongelezen: vet zoals Apple Mail, en het vlak licht gemarkeerd met de markeerstift-kleur */
+.item.unread{background:color-mix(in srgb, var(--mark) 26%, transparent)}
+.item.unread:hover,.item.unread.on{background:color-mix(in srgb, var(--mark) 40%, transparent)}
 .plan{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);font-size:13px}
 .plan input{padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font:inherit;color:inherit}
 .item.sched{cursor:default}

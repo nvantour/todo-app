@@ -8,7 +8,8 @@ import { useSession } from '../data/session'
 import { parseAirtableUrl } from '../lib/airtable'
 import { describeRecurrence, todayISO } from '../lib/dates'
 import { effectiveBucket } from '../lib/selectors'
-import { SOURCE_ICON, SOURCE_NAME } from '../lib/sources'
+import { SOURCE_ICON, SOURCE_NAME, isInternal } from '../lib/sources'
+import { SourceLink } from './SourceLink'
 import { closeDetail, useOverlays } from '../ui/overlays'
 import { Panel } from './Panel'
 
@@ -153,11 +154,11 @@ function DetailPanel({ todo }: { todo: Todo }) {
         <div className="field">
           <span>Bron</span>
           {todo.source.url ? (
-            <a className="source-link" href={todo.source.url} target="_blank" rel="noreferrer">
+            <SourceLink source={todo.source} className="source-link">
               {SourceIcon && <SourceIcon size={14} />}
               {sourceLabel}
-              <ExternalLink size={13} />
-            </a>
+              {!isInternal(todo.source.url) && <ExternalLink size={13} />}
+            </SourceLink>
           ) : (
             <span className="source-link is-plain">
               {SourceIcon && <SourceIcon size={14} />}

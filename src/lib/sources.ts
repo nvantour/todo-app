@@ -24,3 +24,12 @@ export const SOURCE_NAME: Record<SourceType, string> = {
   claude: 'Claude',
   api: 'Koppeling',
 }
+
+/** Link binnen de app (bv. een mail-thread in de Mail-tab) of naar buiten (Airtable, Gmail, agenda)? */
+export function isInternal(url: string): boolean {
+  try {
+    return new URL(url, window.location.origin).origin === window.location.origin
+  } catch {
+    return false
+  }
+}

@@ -1320,7 +1320,13 @@ export function mountMail(el: HTMLElement, h: MailHooks, theme: string): () => v
   ro.observe(host);
 
   if (!started || !S.account) { started = true; void start(); }
-  else { render(); void loadList(); }
+  else {
+    render();
+    void loadList();
+    // via een link uit een taak (…/mail#mail-<id>): die thread openen
+    const raw = /^#mail-(.+)$/.exec(location.hash)?.[1];
+    if (raw && decodeURIComponent(raw) !== S.open) void openThread(decodeURIComponent(raw));
+  }
 
   return () => {
     root.removeEventListener('click', on_click);

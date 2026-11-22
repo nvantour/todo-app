@@ -5,6 +5,7 @@ import { store } from '../data/store'
 import { describeRecurrence, formatDue, todayISO } from '../lib/dates'
 import { effectiveBucket } from '../lib/selectors'
 import { SOURCE_ICON } from '../lib/sources'
+import { SourceLink } from './SourceLink'
 import { openDetail } from '../ui/overlays'
 
 interface Props {
@@ -83,10 +84,10 @@ export function ChecklistItem({ todo, project, hideProject, markLater }: Props) 
             </span>
           )}
           {SourceIcon && (
-            <span className="tag is-source" title={todo.source.label}>
+            <SourceLink source={todo.source} className={`tag is-source${todo.source.url ? ' is-link' : ''}`} title={todo.source.url ? `Open: ${todo.source.label ?? ''}` : todo.source.label}>
               <SourceIcon size={12} />
               <span>{todo.source.label}</span>
-            </span>
+            </SourceLink>
           )}
           {todo.recurrence && (
             <span className="tag is-plain" title={describeRecurrence(todo.recurrence)}>
