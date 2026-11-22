@@ -60,6 +60,13 @@ Het volledige contract voor koppelingen staat in `docs/koppelingen.md`; serverin
 - Sleutels staan nooit in de repo: Firebase-webconfig in `.env.local` (niet geheim), serversleutels in de kluis van het project (`firebase functions:secrets:set`), de persoonlijke sleutel voor Claude als `TODO_APP_TOKEN` in `~/.zprofile`.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` met waarde `-` betekent: Google-koppeling nog niet ingesteld.
 
+## Mail (sinds 2026-11-22)
+
+- De losse mailclient (`apps/Email client`) draait nu als Mail-tab: `src/mail/` (code van Email-Client, `mailApp.ts` = vroegere `main.ts`) in een Shadow DOM via `src/views/MailView.tsx`. Eigen stijlen in `src/mail/mail.css` (`:host`, `@container mail`).
+- Inloggen via de Google-koppeling: scopes `gmail.modify` + `gmail.settings.basic`; `GET /api/google/token` (alleen ID-token van de app) geeft een toegangsbewijs van een uur; het refresh-token blijft op de server.
+- "Maak taak" en "Bespreek" in een thread praten via `MailHooks` met de store. Gepland verzenden staat uit (had de server van Email-Client nodig).
+- Google-koppeling ingesteld op 2026-11-22: OAuth-client "Todo server (agenda en chat)", secrets `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (versie 2).
+
 ## Stand (2026-11-18)
 
 Werkt: app, login, sync, server, Claude-koppeling op de laptop. Nog in te stellen door Nino: Google-koppeling (agenda, Chat), meldingen (VAPID-sleutel), Claude-app op de telefoon, Siri-opdracht. Zie `docs/server.md`.
