@@ -5,6 +5,8 @@ import { MobileNav } from './components/MobileNav'
 import { TaskDetail } from './components/TaskDetail'
 import { ClientManager } from './components/ClientManager'
 import { SearchDialog } from './components/SearchDialog'
+import { TodayView } from './views/TodayView'
+import { MailView, MeetingsView } from './views/ComingSoonView'
 import { TasksView } from './views/TasksView'
 import { ClientsView } from './views/ClientsView'
 import { DiscussionsView } from './views/DiscussionsView'
@@ -29,12 +31,15 @@ export function App() {
       {/* toestemming voor de Claude-app; de server stuurt hierheen vanuit /oauth/authorize */}
       <Route path="/koppelen" element={<ConnectPage />} />
       <Route element={<Shell />}>
+        <Route path="/vandaag" element={<TodayView />} />
         <Route path="/taken" element={<TasksView />} />
         <Route path="/klanten" element={<ClientsView />} />
         <Route path="/bespreken" element={<DiscussionsView />} />
+        <Route path="/meetings" element={<MeetingsView />} />
+        <Route path="/mail" element={<MailView />} />
         <Route path="/voorstellen" element={<SuggestionsView />} />
         <Route path="/instellingen" element={<SettingsView />} />
-        <Route path="*" element={<Navigate to="/taken" replace />} />
+        <Route path="*" element={<Navigate to="/vandaag" replace />} />
       </Route>
     </Routes>
   )
@@ -52,7 +57,7 @@ function Shell() {
         openSearch()
         return
       }
-      // Q springt naar de lege regel onder "Om nu te doen"
+      // Q springt naar de lege regel onder "Vandaag" bij Taken
       const el = e.target as HTMLElement
       const typing = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable
       if (e.key.toLowerCase() !== 'q' || typing || e.metaKey || e.ctrlKey || e.altKey) return

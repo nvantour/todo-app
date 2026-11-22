@@ -25,7 +25,9 @@ Deploy is handmatig met de Firebase-CLI (project `work-apps-48770`, gedeeld met 
 
 ## Wat de app doet
 
-- Eén scherm **Taken** met twee groepen: *Om nu te doen* (`bucket: 'now'`) en *Om niet te vergeten* (`'later'`). Een taak met een datum schuift op die dag vanzelf naar "nu". Geen prioriteiten, geen Vandaag/Binnenkort.
+- De app groeit uit tot Nino's **werk-OS** (plan: `Ideeën/Werk-OS (todo-app als centrale plek).md` in de werkmap). Tabs: Vandaag · Taken · Om te bespreken · Meetings · Mail · Voorstellen · Per klant. Meetings en Mail zijn nog een lege staat (`src/views/ComingSoonView.tsx`).
+- **Vandaag** (`/vandaag`, startpagina): dagstart-blok (nog leeg, wordt gevuld door `/werkronde`), voorstellen-banner, max. 5 taken "om nu te doen", bespreekgroepen met open punten. Op de telefoon staan Meetings, Mail en Per klant onder "Meer".
+- Scherm **Taken** met twee groepen: *Om nu te doen* (`bucket: 'now'`) en *Om niet te vergeten* (`'later'`). Een taak met een datum schuift op die dag vanzelf naar "nu". Geen prioriteiten.
 - **Per klant**: raster met een blok per klant plus "Overig".
 - **Voorstellen**: wat tools of AI zelf vinden (agenda, meeting, mail, chat). Wordt pas een taak na akkoord.
 - Checklist zoals Notes: klik in de tekst om te bewerken, lege regel onderaan om door te typen. Klant, datum, tijd en herhaling worden herkend uit de tekst (`src/lib/parse.ts`, `src/lib/detect.ts`).

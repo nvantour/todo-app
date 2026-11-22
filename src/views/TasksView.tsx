@@ -33,7 +33,7 @@ export function TasksView() {
 
       <section className="section">
         <h2 className="section__head">
-          Om nu te doen <span>{now.length}</span>
+          Vandaag <span>{now.length}</span>
         </h2>
         {now.map((t) => (
           <ChecklistItem key={t.id} todo={t} project={project(t.projectId)} />

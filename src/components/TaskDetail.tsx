@@ -136,14 +136,14 @@ function DetailPanel({ todo }: { todo: Todo }) {
         <span>Wanneer</span>
         <div className="seg" role="group" aria-label="Wanneer">
           <button className={todo.bucket === 'now' ? 'is-on' : ''} onClick={() => patch({ bucket: 'now' })}>
-            Om nu te doen
+            Vandaag
           </button>
           <button className={todo.bucket === 'later' ? 'is-on' : ''} onClick={() => patch({ bucket: 'later' })}>
             Om niet te vergeten
           </button>
         </div>
         {todo.bucket === 'later' && effectiveBucket(todo, today) === 'now' && (
-          <small>De datum is aangebroken, dus de taak staat nu bij “Om nu te doen”.</small>
+          <small>De datum is aangebroken, dus de taak staat nu bij “Vandaag”.</small>
         )}
       </div>
 

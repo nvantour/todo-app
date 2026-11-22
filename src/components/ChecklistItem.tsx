@@ -108,7 +108,7 @@ export function ChecklistItem({ todo, project, hideProject, markLater }: Props) 
         <button
           className="item__move"
           aria-label={todo.bucket === 'now' ? 'Naar niet vergeten' : 'Naar nu doen'}
-          title={todo.bucket === 'now' ? 'Naar “Om niet te vergeten”' : 'Naar “Om nu te doen”'}
+          title={todo.bucket === 'now' ? 'Naar “Om niet te vergeten”' : 'Naar “Vandaag”'}
           onClick={() => store.updateTodo(todo.id, { bucket: todo.bucket === 'now' ? 'later' : 'now' })}
         >
           {todo.bucket === 'now' ? <ArrowDownToLine size={15} /> : <ArrowUpToLine size={15} />}

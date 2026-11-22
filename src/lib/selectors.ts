@@ -1,4 +1,5 @@
-import type { AppData, Bucket, Todo } from '../model/types'
+import type { AppData, Bucket, Discussion, Todo } from '../model/types'
+import { openItemCount } from '../data/logic'
 import { addDays, todayISO } from './dates'
 
 /** Eerst op datum (zonder datum achteraan), daarna op eigen volgorde. */
@@ -28,6 +29,14 @@ export function todosForProject(data: AppData, projectId: string | null, today =
   return openTodos(data)
     .filter((t) => t.projectId === projectId)
     .sort((a, b) => rank(a) - rank(b) || byDueThenOrder(a, b))
+}
+
+/** Bespreekgroepen met minstens één open punt (kopjes tellen niet), in de eigen volgorde. */
+export function discussionsWithOpenItems(data: AppData): { discussion: Discussion; open: number }[] {
+  return [...data.discussions]
+    .sort((a, b) => a.order - b.order)
+    .map((discussion) => ({ discussion, open: openItemCount(discussion) }))
+    .filter((d) => d.open > 0)
 }
 
 export function openSuggestions(data: AppData) {

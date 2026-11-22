@@ -4,6 +4,7 @@ import { setTheme, useTheme, type Theme } from '../lib/theme'
 import { CalendarRules } from './settings/CalendarRules'
 import { Connections } from './settings/Connections'
 import { GoogleConnection } from './settings/GoogleConnection'
+import { MenuOrder } from './settings/MenuOrder'
 import { Notifications } from './settings/Notifications'
 
 const THEMES: Array<[Theme, string]> = [
@@ -33,6 +34,7 @@ export function SettingsView() {
         </div>
       </section>
 
+      <MenuOrder />
       <GoogleConnection />
       <CalendarRules />
       <Notifications />

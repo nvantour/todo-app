@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { Discussion, DiscussionItem } from '../model/types'
 import { store, useAppData } from '../data/store'
@@ -15,12 +15,26 @@ function changeItems(discussionId: string, fn: (items: DiscussionItem[]) => Disc
 export function DiscussionsView() {
   const data = useAppData()
   const [name, setName] = useState('')
+  const [needName, setNeedName] = useState(false)
+  const nameRef = useRef<HTMLInputElement>(null)
   const groups = [...data.discussions].sort((a, b) => a.order - b.order)
 
   function addGroup() {
-    if (!name.trim()) return
-    store.addDiscussion(name)
+    if (!name.trim()) {
+      // knop zonder naam: cursor in het naamveld en een korte hint, in plaats van niets doen
+      setNeedName(true)
+      nameRef.current?.focus()
+      return
+    }
+    setNeedName(false)
+    const id = store.addDiscussion(name)
     setName('')
+    // nieuwe groep staat achteraan: scroll erheen en zet de cursor op de eerste regel
+    window.setTimeout(() => {
+      const block = document.querySelector<HTMLElement>(`[data-group-id="${id}"]`)
+      block?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      block?.querySelector<HTMLInputElement>('input, textarea')?.focus({ preventScroll: true })
+    }, 50)
   }
 
   return (
@@ -37,10 +51,29 @@ export function DiscussionsView() {
           addGroup()
         }}
       >
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nieuwe groep, bv. een klant of een naam" aria-label="Nieuwe groep" enterKeyHint="done" autoComplete="off" />
-        <button type="submit" className="btn" disabled={!name.trim()}>
+        <input
+          ref={nameRef}
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value)
+            if (e.target.value.trim()) setNeedName(false)
+          }}
+          placeholder="Nieuwe groep, bv. een klant of een naam"
+          aria-label="Nieuwe groep"
+          aria-invalid={needName || undefined}
+          aria-describedby={needName ? 'new-group-hint' : undefined}
+          className={needName ? 'is-missing' : undefined}
+          enterKeyHint="done"
+          autoComplete="off"
+        />
+        <button type="submit" className="btn">
           <Plus size={15} /> Nieuwe groep
         </button>
+        {needName && (
+          <p id="new-group-hint" className="new-group__hint" role="status">
+            Typ eerst een naam, bijvoorbeeld een klant of een collega.
+          </p>
+        )}
       </form>
 
       {groups.length === 0 && (
@@ -87,7 +120,7 @@ function GroupBlock({ group }: { group: Discussion }) {
   }
 
   return (
-    <section className="block talk" aria-label={group.title}>
+    <section className="block talk" aria-label={group.title} data-group-id={group.id}>
       <div className="block__head">
         <i style={{ background: project?.color ?? 'var(--ink-3)' }} />
         <div
