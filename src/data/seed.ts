@@ -148,6 +148,7 @@ export function seedData(): AppData {
       },
     ],
     discussions: seedDiscussions(stamp),
+    statuses: [],
     calendarRules: [{ id: 'qbr', match: 'QBR', titleTemplate: '{titel} voorbereiden', workdaysBefore: 3, enabled: true }],
   }
 }

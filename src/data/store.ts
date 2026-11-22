@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { AppData, CalendarRule, Discussion, NewTodo, Project, Suggestion, Todo } from '../model/types'
+import type { AppData, CalendarRule, Discussion, NewTodo, Project, Suggestion, TaskStatus, Todo } from '../model/types'
 import { detectProject } from '../lib/detect'
 import { seedData } from './seed'
 import { buildDiscussion, buildProject, buildRule, buildTodo, nowISO, preparePatch, todoFromSuggestion, toggleChanges } from './logic'
@@ -32,6 +32,8 @@ export interface Store {
   addDiscussion(title: string): string
   updateDiscussion(id: string, patch: Partial<Discussion>): void
   deleteDiscussion(id: string): void
+  /** Kolommen van het bord: de hele lijst in één keer (toevoegen, hernoemen, verwijderen, volgorde). */
+  setStatuses(list: TaskStatus[]): void
 }
 
 const KEY = 'todo-app:v2'
@@ -46,7 +48,7 @@ export function createLocalStore(): Store {
       // oudere opslag heeft nog geen 'discussions': val terug op een lege lijst
       if (raw) {
         const saved = JSON.parse(raw) as Partial<AppData>
-        return { ...(saved as AppData), discussions: saved.discussions ?? [] }
+        return { ...(saved as AppData), discussions: saved.discussions ?? [], statuses: saved.statuses ?? [] }
       }
     } catch {
       /* opslag niet beschikbaar: start met voorbeelddata */
@@ -144,6 +146,9 @@ export function createLocalStore(): Store {
     deleteDiscussion(id) {
       commit({ ...data, discussions: data.discussions.filter((d) => d.id !== id) })
     },
+    setStatuses(list) {
+      commit({ ...data, statuses: list })
+    },
   }
 }
 
@@ -183,6 +188,7 @@ export const store: Store = {
   addDiscussion: (title) => backend.addDiscussion(title),
   updateDiscussion: (id, patch) => backend.updateDiscussion(id, patch),
   deleteDiscussion: (id) => backend.deleteDiscussion(id),
+  setStatuses: (list) => backend.setStatuses(list),
 }
 
 export function useAppData(): AppData {

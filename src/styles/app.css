@@ -1788,3 +1788,188 @@ button.check.is-small::after {
     display: none;
   }
 }
+
+/* ---------- Bord (kanban) bij Taken ---------- */
+
+.view-switch {
+  flex: none;
+}
+
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(250px, 1fr);
+  gap: 12px;
+  align-items: start;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+.board__col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 120px;
+  padding: 10px;
+  border-radius: var(--r-lg);
+  background: var(--hover);
+  border: 1px solid transparent;
+}
+
+.board__col.is-over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.board__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+}
+
+.board__name {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--r-sm);
+  padding: 2px 4px;
+  margin-left: -4px;
+}
+
+.board__name:hover {
+  background: var(--surface);
+}
+
+.board__rename {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.board__count {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+.board__tools {
+  display: flex;
+  margin-left: auto;
+}
+
+.board__tools .icon-btn {
+  width: 26px;
+  height: 26px;
+}
+
+.board__tools .icon-btn:disabled {
+  opacity: 0.3;
+  background: none;
+  cursor: default;
+}
+
+.board__hint {
+  margin: -4px 0 0;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.board__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  cursor: grab;
+  font-size: 14px;
+}
+
+.card:hover {
+  border-color: var(--line-strong);
+}
+
+.card.is-dragging {
+  opacity: 0.4;
+}
+
+.card.is-done .card__title {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.card__title {
+  overflow-wrap: anywhere;
+}
+
+.card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.card__status {
+  margin-left: auto;
+  max-width: 130px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.board__new {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  background: none;
+  border: 1px dashed var(--line-strong);
+  min-height: 0;
+}
+
+.board__new input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: 14px;
+}
+
+@media (max-width: 760px) {
+  .board {
+    grid-auto-columns: 82vw;
+    scroll-snap-type: x mandatory;
+    margin: 0 -18px;
+    padding: 0 18px 12px;
+  }
+
+  .board__col {
+    scroll-snap-align: start;
+  }
+
+  .view-header.has-action {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

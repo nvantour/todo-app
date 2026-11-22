@@ -92,7 +92,7 @@ export class TodoService {
       this.repo.listProjects(uid),
       this.repo.listSuggestions(uid),
     ])
-    return { todos, projects, suggestions, labels: [], calendarRules: [], discussions: [] }
+    return { todos, projects, suggestions, labels: [], calendarRules: [], discussions: [], statuses: [] }
   }
 
   async listProjects(uid: string): Promise<Project[]> {

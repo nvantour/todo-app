@@ -5,6 +5,7 @@ import { detectProject } from '../lib/detect'
 import type { Store } from './store'
 import { buildDiscussion, buildProject, buildRule, buildTodo, normalizeDiscussion, normalizeLabel, normalizeProject, normalizeRule, normalizeSuggestion, normalizeTodo, nowISO, preparePatch, todoFromSuggestion, toggleChanges } from './logic'
 import { seedProjects } from './seed'
+import { normalizeStatus } from './board'
 import { getFirebaseApp } from './session'
 
 export interface FirestoreStore extends Store {
@@ -40,7 +41,7 @@ export function createFirestoreStore(uid: string): FirestoreStore {
   const col = (name: keyof AppData) => collection(firestore, 'users', uid, name)
   const ref = (name: keyof AppData, id: string) => doc(firestore, 'users', uid, name, id)
 
-  let data: AppData = { todos: [], projects: [], labels: [], suggestions: [], calendarRules: [], discussions: [] }
+  let data: AppData = { todos: [], projects: [], labels: [], suggestions: [], calendarRules: [], discussions: [], statuses: [] }
   const listeners = new Set<() => void>()
   const loaded = new Set<string>()
   let seeded = false
@@ -56,7 +57,7 @@ export function createFirestoreStore(uid: string): FirestoreStore {
       { includeMetadataChanges: true },
       (snap) => {
         let items = snap.docs.map((d) => map(d.id, d.data())) as AppData[K]
-        if (name === 'projects' || name === 'discussions') items = [...(items as { order: number }[])].sort((a, b) => a.order - b.order) as AppData[K]
+        if (name === 'projects' || name === 'discussions' || name === 'statuses') items = [...(items as { order: number }[])].sort((a, b) => a.order - b.order) as AppData[K]
         data = { ...data, [name]: items }
 
         // Eerste login: alleen de klantenlijst aanmaken. Pas als de server bevestigt dat er niets is,
@@ -69,17 +70,19 @@ export function createFirestoreStore(uid: string): FirestoreStore {
         }
 
         if (!snap.metadata.fromCache || !snap.empty) loaded.add(name)
-        if (loaded.size === 6) resolveReady()
+        if (loaded.size === LISTS) resolveReady()
         listeners.forEach((l) => l())
       },
       (err) => {
         console.error(`Lezen mislukt (${name})`, err)
         loaded.add(name)
-        if (loaded.size === 6) resolveReady()
+        if (loaded.size === LISTS) resolveReady()
       },
     )
   }
 
+  // aantal lijsten waar we op wachten voordat de app opent
+  const LISTS = 7
   const unsubs = [
     listen('todos', normalizeTodo),
     listen('projects', normalizeProject),
@@ -87,6 +90,7 @@ export function createFirestoreStore(uid: string): FirestoreStore {
     listen('suggestions', normalizeSuggestion),
     listen('calendarRules', normalizeRule),
     listen('discussions', normalizeDiscussion),
+    listen('statuses', normalizeStatus),
   ]
 
   const nextOrder = () => Math.max(0, ...data.todos.map((t) => t.order)) + 1
@@ -180,6 +184,13 @@ export function createFirestoreStore(uid: string): FirestoreStore {
     },
     deleteDiscussion(id) {
       deleteDoc(ref('discussions', id)).catch(fail('groep'))
+    },
+    setStatuses(list) {
+      // hele lijst in één keer: nieuwe/gewijzigde zetten, verdwenen statussen weghalen
+      const batch = writeBatch(firestore)
+      for (const s of list) batch.set(ref('statuses', s.id), s)
+      for (const old of data.statuses) if (!list.some((s) => s.id === old.id)) batch.delete(ref('statuses', old.id))
+      batch.commit().catch(fail('statussen'))
     },
   }
 }

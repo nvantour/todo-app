@@ -50,7 +50,7 @@ export async function buildBrief(service: TodoService, uid: string): Promise<Bri
     source: t.source.label ?? null,
   })
 
-  const now = todosInBucket({ todos, projects, suggestions, labels: [], calendarRules: [], discussions: [] }, 'now', today).map(lean)
+  const now = todosInBucket({ todos, projects, suggestions, labels: [], calendarRules: [], discussions: [], statuses: [] }, 'now', today).map(lean)
   const overdue = open.filter((t) => t.due !== null && t.due < today).sort(byDue).map(lean)
   const dueToday = open.filter((t) => t.due === today).sort(byDue).map(lean)
   const end = addDays(today, UPCOMING_DAYS)

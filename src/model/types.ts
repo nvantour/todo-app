@@ -56,9 +56,22 @@ export interface Todo {
   recurrence: Recurrence | null
   source: Source
   calendarEventId: string | null
+  /** Kolom op het bord (TaskStatus.id). Ontbreekt of onbekend = de eerste open status. Afgevinkt = de Finished-status. */
+  statusId?: string | null
   order: number
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * Een kolom op het bord. 'done' = afgevinkt: een taak die daarheen gaat wordt afgevinkt,
+ * en elke afgevinkte taak staat daar. Er is precies één 'done'-status.
+ */
+export interface TaskStatus {
+  id: string
+  name: string
+  kind: 'open' | 'done'
+  order: number
 }
 
 /** Een project is in de praktijk meestal een klant. */
@@ -128,6 +141,8 @@ export interface AppData {
   suggestions: Suggestion[]
   calendarRules: CalendarRule[]
   discussions: Discussion[]
+  /** Leeg = de standaardstatussen (zie DEFAULT_STATUSES in data/logic.ts). */
+  statuses: TaskStatus[]
 }
 
 export type NewTodo = Pick<Todo, 'title'> & Partial<Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>>
