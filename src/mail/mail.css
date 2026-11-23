@@ -130,6 +130,7 @@ button:disabled{cursor:default;opacity:.6}
 .menu>span{margin-right:4px}
 .menu .btn{background:var(--surface)}
 .menu .btn.on{background:var(--mark)}
+.menu .btn.pri{background:var(--ink)}
 .reply{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:4px;background:var(--surface)}
 .reply:focus-within{border-color:var(--muted)}
 .modes{display:flex;flex-wrap:wrap;gap:14px;padding:10px 14px 2px}

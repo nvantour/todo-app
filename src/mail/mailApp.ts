@@ -1321,6 +1321,7 @@ const on_keydown = ((ev: KeyboardEvent) => {
 
 // Typen in het schrijfvenster: alleen opslaan, niet opnieuw tekenen (anders verspringt de cursor).
 const FIELDS: Record<string, keyof Draft> = { 'c-to': 'to', 'c-cc': 'cc', 'c-bcc': 'bcc', 'c-subject': 'subject', 'c-body': 'body', 'c-remat': 'remAt' };
+let ruleBusy = false;  // er wordt net een regel gemaakt
 const RULE_FIELDS: Record<string, 'from' | 'subject' | 'body' | 'forward'> = { 'r-from': 'from', 'r-subject': 'subject', 'r-body': 'body', 'r-forward': 'forward' };
 const on_input = ((ev: Event) => {
   const el = ev.target as HTMLInputElement;
@@ -1357,7 +1358,8 @@ const on_submit = (async (ev: Event) => {
     const account = S.account, spec = draftRule(), problem = ruleProblem(spec);
     if (!account) return;
     if (problem) { toast(problem.message); focus(`#r-${problem.field}`); return; }
-    S.error = '';
+    if (ruleBusy) return;  // dubbelklik: niet twee keer dezelfde regel maken
+    ruleBusy = true; S.error = '';
     try {
       const r = await createRule(account, spec);
       S.rules = [...S.rules, r];
@@ -1365,6 +1367,7 @@ const on_submit = (async (ev: Event) => {
       toast(spec.forward ? `Regel toegevoegd: nieuwe mail die past gaat door naar ${spec.forward}` : 'Regel toegevoegd');
     }
     catch (e) { fail(e); }
+    finally { ruleBusy = false; }
     render();
     return;
   }
