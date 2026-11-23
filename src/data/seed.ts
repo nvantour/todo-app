@@ -213,5 +213,33 @@ function seedReplies(stamp: string): Reply[] {
       draft: 'Donderdag om 10:00 kan ik. Past dat?',
       reason: 'Rick wil een moment om de testdatums door te lopen.',
     },
+    // Zo zet de scan op de server een gesprek klaar: zonder concept.
+    {
+      ...base,
+      id: 'r-scan-gchat',
+      channel: 'gchat',
+      title: 'DM Maud',
+      who: 'Maud',
+      url: 'https://mail.google.com/mail/u/0/#chat/space/CCCC',
+      target: { space: 'spaces/CCCC' },
+      externalId: 'spaces/CCCC',
+      messages: [{ author: 'Maud', text: 'Kun je uiterlijk donderdag de learnings van CH delen?', at: '2026-11-23T12:10:00Z' }],
+      draft: '',
+      reason: 'Maud stuurde je een bericht waar je nog niet op hebt gereageerd.',
+    },
+    // Slack-vermelding uit een meldingsmail: zonder verzendadres, antwoorden doe je in Slack zelf.
+    {
+      ...base,
+      id: 'r-scan-slack',
+      channel: 'slack',
+      title: '#online-dialogue',
+      who: 'Nicola (Wehkamp)',
+      url: 'https://onlinedialogue-talk.slack.com/archives/C111/p1700000000000200',
+      target: { channel: 'C111', ts: '1700000000.000200' },
+      externalId: 'slack:C111:1700000000.000200',
+      messages: [{ author: 'Nicola', text: '@Nino van Tour can OD30 go live today?', at: '2026-11-23T12:30:00Z' }],
+      draft: '',
+      reason: 'Nicola noemde je in #online-dialogue (Slack) terwijl je weg was.',
+    },
   ]
 }

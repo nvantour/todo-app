@@ -1,8 +1,31 @@
 # Tab Antwoorden
 
-Wie wacht er op Nino? Claude zet per gesprek een kaart klaar met een conceptantwoord; Nino past aan en verstuurt met het vinkje.
+Wie wacht er op Nino? Alles waar een antwoord op moet komen staat hier: chats, mails, Slack en Teams.
+Taken horen hier niet (die staan bij Voorstellen en Taken); een "Reageren op …"-voorstel bestaat niet meer.
 
-## Flow
+Twee bronnen vullen de tab:
+
+| Bron | Wanneer | Wat | Concept |
+|---|---|---|---|
+| **Scan op de server** (`functions/src/replyScan.ts`) | elk uur op werkdagen, 08:00 t/m 18:00, en met "Antwoorden nu scannen" in Instellingen | Google Chat, mail, en via de meldingsmails ook Teams en Slack | nee |
+| **Claude** (`/chats-ophalen`) | als Nino het vraagt | alle kanalen, volledig gelezen (ook Airtable) | ja |
+
+## De scan (zonder AI)
+
+Vaste herkenning, geen Claude-sleutel. De scan leest alleen en verstuurt nooit iets.
+
+- **Google Chat** (laatste 3 dagen): een DM waarvan het laatste bericht niet van jou is, en een vermelding (@jou) zonder later bericht van jou in dezelfde thread. Regels: `findReplyCandidates` in `chatScan.ts`.
+- **Mail** (inbox, laatste 7 dagen): een mail van een mens, met jou bij **Aan** (alleen cc telt niet), waar jij daarna niet meer op hebt gereageerd. Nieuwsbrieven, meldingen, automatische antwoorden, uitnodigingen en "gedeeld met jou" vallen af. Regels: `classify` en `pendingMessage` in `mailScan.ts`.
+- **Teams** (laatste 3 dagen): meldingsmails van `no-reply@teams.mail.microsoft` ("X sent a message") die nog in je inbox staan. De link in de mail wijst het gesprek aan; dat wordt het verzendadres (`target.url`).
+- **Slack** (laatste 3 dagen): meldingsmails van `notification@slack.com` (vermelding of DM) die nog in je inbox staan. De kaart heeft geen verzendadres: uit de mail is niet zeker in welke thread het antwoord hoort. Antwoorden doe je in Slack zelf (knop "Open het gesprek"), of Claude vult het adres aan met `/chats-ophalen`.
+
+Beperking bij Teams en Slack: de server ziet alleen wat als meldingsmail binnenkomt, dus berichten die je gemist hebt terwijl je weg was. Berichten die je in Teams of Slack zelf al zag, komen alleen via `/chats-ophalen`.
+
+**Aansluiten op bestaande kaarten** (`alignWithExisting`): hoort een vondst bij een kaart die er al staat (zelfde mail-thread, chat, Teams-gesprek of Slack-kanaal), dan wordt die kaart bijgewerkt. Naam, verzendadres, concept en uitleg van Claude blijven staan.
+
+**Vanzelf weg** (`closeAnswered`): een open kaart voor Google Chat of mail gaat naar `dismissed` zodra de scan ziet dat jij in dat gesprek hebt gereageerd ná het laatste bericht van de ander. Een kaart waarvan jij het antwoord hebt aangepast blijft staan. Voor Teams en Slack kan de server dit niet zien; daar klik je Negeren.
+
+## Flow met Claude
 
 1. Nino typt `/chats-ophalen` in Claude (skill in de werkmap: `.claude/skills/chats-ophalen/`).
 2. Claude leest Google Chat, Slack, Teams en mail, en slaat kaarten op met de MCP-tool `save_reply_drafts` (of `POST /api/replies`).
@@ -20,9 +43,9 @@ Wie wacht er op Nino? Claude zet per gesprek een kaart klaar met een conceptantw
 `open` → (vinkje) → `approved` (Teams/Slack) of `sending` (mail/Chat) → `sent` | `failed`. Daarnaast `dismissed` (Negeren of Taak).
 Terugzetten kan vanuit `approved` (zolang het script nog niet begonnen is) en vanuit `failed`.
 
-Een nieuwe ronde van Claude (`mergeReply` in `src/data/replies.ts`):
+Een nieuwe ronde van Claude of van de scan (`mergeReply` in `src/data/replies.ts`):
 - nieuw gesprek → nieuwe kaart;
-- open/mislukt → berichten bijgewerkt; het concept alleen als Nino het niet zelf heeft aangepast (`draftEdited`);
+- open/mislukt → berichten bijgewerkt; het concept alleen als Nino het niet zelf heeft aangepast (`draftEdited`) én de ronde een concept meegeeft (de scan geeft er geen, dus het concept van Claude blijft staan);
 - verstuurd/genegeerd → alleen weer open als er sindsdien een bericht van een ander is;
 - goedgekeurd/bezig → niet aangeraakt.
 
@@ -35,4 +58,6 @@ Een nieuwe ronde van Claude (`mergeReply` in `src/data/replies.ts`):
 | POST | `/api/replies/:id/result` | token | `{status: 'sending'|'sent'|'failed', error?}`; alleen approved→sending→sent/failed |
 | POST | `/api/replies/:id/send` | alleen app (ID-token) | `{text}` → Google Chat versturen |
 
-`target` per kanaal: mail `{threadId}` · gchat `{space, thread}` · slack `{url, channel, ts}` · teams `{url}` = `https://teams.microsoft.com/l/chat/<chat-id>/0?tenantId=<tenant>` · airtable `{baseId, tableId, recordId, parentCommentId?}`.
+`externalId` per kanaal (zo geeft de scan ze; Claude neemt de naam van een bestaande kaart over): mail `gmail:<threadId>` · gchat de thread `spaces/X/threads/Y`, of voor een DM de space `spaces/X` · teams `teams:<chat-id>` · slack `slack:<kanaal>:<ts>`, of voor een DM `slack:<kanaal>`.
+
+`target` per kanaal: mail `{threadId}` · gchat `{space, thread}` (DM: alleen `space`) · slack `{url, channel, ts}` · teams `{url}` = `https://teams.microsoft.com/l/chat/<chat-id>/0?tenantId=<tenant>` · airtable `{baseId, tableId, recordId, parentCommentId?}`.

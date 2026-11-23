@@ -29,7 +29,7 @@ Deploy is handmatig met de Firebase-CLI (project `work-apps-48770`). Er is geen 
 - **Vandaag** (`/vandaag`, startpagina): dagstart-blok (nog leeg, wordt gevuld door `/werkronde`), voorstellen-banner, max. 5 taken "om nu te doen", bespreekgroepen met open punten. Op de telefoon staan Meetings, Mail en Per klant onder "Meer".
 - Scherm **Taken** met twee groepen: *Om nu te doen* (`bucket: 'now'`) en *Om niet te vergeten* (`'later'`). Een taak met een datum schuift op die dag vanzelf naar "nu". Geen prioriteiten.
 - **Per klant**: raster met een blok per klant plus "Overig".
-- **Voorstellen**: wat tools of AI zelf vinden (agenda, meeting, mail, chat). Wordt pas een taak na akkoord.
+- **Voorstellen**: mogelijke **taken** die tools of AI zelf vinden (agenda, meeting, mail, chat). Wordt pas een taak na akkoord. Iets waar alleen een antwoord op moet komen is geen voorstel: dat hoort op **Antwoorden**.
 - Checklist zoals Notes: klik in de tekst om te bewerken, lege regel onderaan om door te typen. Klant, datum, tijd en herhaling worden herkend uit de tekst (`src/lib/parse.ts`, `src/lib/detect.ts`).
 - Inspreken (`src/voice/`), zoeken (⌘K), instellingen (thema, agenda-regels, meldingen, koppelingen).
 
@@ -56,6 +56,7 @@ Het volledige contract voor koppelingen staat in `docs/koppelingen.md`; serverin
 ## Vaste afspraken
 
 - Wat Nino letterlijk vraagt → taak (`add_todo`). Wat een tool of AI zelf vindt → voorstel (`suggest_todo`), nooit direct een taak.
+- Voorstellen = taken, Antwoorden = berichten. Een chat, mail, Slack of Teams waar een antwoord op moet komen gaat naar de tab Antwoorden (`save_reply_drafts` of de scan), nooit als "Reageren op …" naar Voorstellen.
 - De service worker mag `/__/` (Firebase-login), `/api`, `/mcp`, `/oauth` en `/.well-known` niet onderscheppen.
 - Sleutels staan nooit in de repo: Firebase-webconfig in `.env.local` (niet geheim), serversleutels in de kluis van het project (`firebase functions:secrets:set`), de persoonlijke sleutel voor Claude als `TODO_APP_TOKEN` in `~/.zprofile`.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` met waarde `-` betekent: Google-koppeling nog niet ingesteld.
@@ -73,7 +74,8 @@ Het volledige contract voor koppelingen staat in `docs/koppelingen.md`; serverin
 ## Antwoorden (sinds 2026-11-23)
 
 - Tab `/antwoorden` (`src/views/RepliesView.tsx`): kaarten per gesprek (mail, Google Chat, Slack, Teams) met conceptantwoord; Nino verstuurt met het vinkje. Contract en statussen: `docs/antwoorden.md`.
-- Kaarten komen van Claude via skill `/chats-ophalen` (werkmap) → MCP `save_reply_drafts` / `POST /api/replies`. Claude verstuurt nooit; `/api/replies/:id/send` accepteert alleen het ID-token van de app.
+- Kaarten komen uit twee bronnen. (1) De **scan op de server** (`functions/src/replyScan.ts`, geplande functie `chatScan`, elk uur op werkdagen): Google Chat (`chatScan.ts`), mail en de meldingsmails van Teams en Slack (`mailScan.ts`); vaste herkenning, zonder concept. (2) **Claude** via skill `/chats-ophalen` (werkmap) → MCP `save_reply_drafts` / `POST /api/replies`: alle kanalen volledig, met concept. Niemand verstuurt vanzelf; `/api/replies/:id/send` accepteert alleen het ID-token van de app.
+- De scan sluit aan op bestaande kaarten (concept en verzendadres van Claude blijven staan) en haalt een Chat- of mailkaart weg zodra Nino in het gesprek zelf heeft gereageerd. Teams en Slack ziet de server alleen via meldingsmails (gemiste berichten); Slack-kaarten uit de scan hebben geen verzendadres.
 - Versturen: mail door de app (Gmail), Google Chat door de server (scope `chat.messages.create`, vraagt één keer opnieuw koppelen), Teams/Slack door `reply-sender/` op de Mac mini (Playwright, eigen ingelogd profiel).
 
 ## Stand (2026-11-18)

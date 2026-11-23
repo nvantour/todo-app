@@ -49,7 +49,7 @@ function ScanLine({ icon, name, ok, scan }: { icon: React.ReactNode; name: strin
         <div className="hint-text">
           {!scan && 'Nog niet gescand.'}
           {scan && !scan.error && `Laatste scan ${when(scan.at)}: ${scan.found} gevonden, ${scan.created} nieuw.`}
-          {scan?.error && `Laatste scan ${when(scan.at)} mislukte: ${scan.error}`}
+          {scan?.error && (scan.found > 0 ? `Laatste scan ${when(scan.at)}: ${scan.found} gevonden, ${scan.created} nieuw. Niet alles was te lezen. ${scan.error}` : `Laatste scan ${when(scan.at)} mislukte: ${scan.error}`)}
         </div>
       </div>
     </div>
@@ -97,8 +97,20 @@ export function GoogleConnection() {
 
   const scan = (kind: 'calendar' | 'chat') =>
     run(kind, async () => {
-      const r = await apiCall<{ found: number; created: number }>(`/scan/${kind}`, { method: 'POST' })
-      setNote({ text: r.created ? `${r.created} nieuw voorstel${r.created === 1 ? '' : 'len'} gevonden.` : r.found ? 'Alles wat is gevonden, stond al in je voorstellen.' : 'Niets gevonden.', bad: false })
+      const r = await apiCall<{ found: number; created: number; warning?: string }>(`/scan/${kind}`, { method: 'POST' })
+      const text =
+        kind === 'chat'
+          ? r.created
+            ? `${r.created} ${r.created === 1 ? 'nieuw gesprek' : 'nieuwe gesprekken'} op Antwoorden.`
+            : r.found
+              ? 'Iedereen die op je wacht, stond al op Antwoorden.'
+              : 'Niemand wacht op je.'
+          : r.created
+            ? `${r.created} nieuw voorstel${r.created === 1 ? '' : 'len'} gevonden.`
+            : r.found
+              ? 'Alles wat is gevonden, stond al in je voorstellen.'
+              : 'Niets gevonden.'
+      setNote(r.warning ? { text: `${text} Niet alles was te lezen. ${r.warning}`, bad: true } : { text, bad: false })
       await load()
     })
 
@@ -124,9 +136,10 @@ export function GoogleConnection() {
     <section className="settings__group" aria-labelledby="google">
       <h2 id="google">Google: agenda, chat en mail</h2>
       <p className="hint-text">
-        Na koppelen bekijkt de app elke ochtend je agenda van de komende twee weken en twee keer per werkdag je Google Chat. Wat er gevonden wordt, komt
-        als <Link to="/voorstellen">voorstel</Link> in je inbox; er wordt nooit zelf een taak gemaakt. De app leest je agenda en chats alleen en kan
-        afspraken aanmaken om taken in te plannen. Met dezelfde koppeling werkt ook de <Link to="/mail">Mail</Link>-tab.
+        Na koppelen bekijkt de app elke ochtend je agenda van de komende twee weken; wat daar gevonden wordt, komt als{' '}
+        <Link to="/voorstellen">voorstel</Link> in je inbox en wordt nooit zelf een taak. Elk uur op werkdagen kijkt de app wie op een antwoord van
+        je wacht in Google Chat en je mail (via de meldingsmails ook Teams en Slack); die gesprekken komen op <Link to="/antwoorden">Antwoorden</Link>.
+        Er wordt nooit zelf iets verstuurd. Met dezelfde koppeling werkt ook de <Link to="/mail">Mail</Link>-tab.
       </p>
 
       {note && (
@@ -168,7 +181,7 @@ export function GoogleConnection() {
           </div>
 
           <ScanLine icon={<CalendarDays size={14} />} name="Agenda" ok={status.calendar} scan={status.lastCalendarScan} />
-          <ScanLine icon={<MessageSquare size={14} />} name="Google Chat" ok={status.chat} scan={status.lastChatScan} />
+          <ScanLine icon={<MessageSquare size={14} />} name="Antwoorden (Chat, mail, Teams, Slack)" ok={status.chat || status.mail} scan={status.lastChatScan} />
           <div className="conn__row">
             <div>
               <div className="conn__name">
@@ -193,8 +206,8 @@ export function GoogleConnection() {
               <button className="btn" onClick={() => void scan('calendar')} disabled={busy !== null || !status.calendar}>
                 {busy === 'calendar' ? 'Bezig…' : 'Agenda nu scannen'}
               </button>
-              <button className="btn" onClick={() => void scan('chat')} disabled={busy !== null || !status.chat}>
-                {busy === 'chat' ? 'Bezig…' : 'Chat nu scannen'}
+              <button className="btn" onClick={() => void scan('chat')} disabled={busy !== null || (!status.chat && !status.mail)}>
+                {busy === 'chat' ? 'Bezig…' : 'Antwoorden nu scannen'}
               </button>
               {(!status.calendar || !status.chat || !status.mail || !status.chatSend) && (
                 <button className="btn" onClick={() => void connect()} disabled={busy !== null}>

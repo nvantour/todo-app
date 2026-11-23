@@ -1,5 +1,5 @@
 import { runCalendarScan, type PrepJudge } from './calendarScan'
-import { runChatScan } from './chatScan'
+import { runReplyScan } from './replyScan'
 import type { GoogleService } from './google'
 import type { PushService } from './push'
 import type { Repo } from './repo'
@@ -33,7 +33,7 @@ export const calendarScanAll = (d: JobDeps) =>
   forConnected(d, (uid) => runCalendarScan({ repo: d.repo, service: d.service, google: d.google, ai: d.prepJudge, onError: d.onError }, uid))
 
 export const chatScanAll = (d: JobDeps) =>
-  forConnected(d, (uid) => runChatScan({ repo: d.repo, service: d.service, google: d.google, ai: null, onError: d.onError }, uid))
+  forConnected(d, (uid) => runReplyScan({ repo: d.repo, service: d.service, google: d.google, ai: null, onError: d.onError }, uid))
 
 async function forDevices(d: JobDeps, fn: (uid: string) => Promise<unknown>) {
   for (const uid of await d.push.usersWithDevices()) {

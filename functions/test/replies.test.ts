@@ -33,6 +33,20 @@ describe('antwoorden: ophalen door Claude', () => {
     expect((await repo.listReplies(UID))[0].draft).toBe('Vrijdag kan ik.')
   })
 
+  it('een ronde zonder concept (de scan) werkt de berichten bij en laat het voorstel van Claude staan', async () => {
+    const { repo, service } = setup()
+    await service.saveReplies(UID, [incoming() as never])
+    const later = { author: 'Rick', text: 'Lukt het nog?', at: '2026-11-18T09:30:00Z' }
+    const r = await service.saveReplies(UID, [incoming({ draft: '', messages: [...incoming().messages, later] }) as never])
+    expect(r).toMatchObject({ updated: 1 })
+    const [card] = await repo.listReplies(UID)
+    expect(card.draft).toBe('Donderdag kan ik.')
+    expect(card.messages).toHaveLength(2)
+    // een nieuw gesprek zonder concept wordt gewoon een lege kaart
+    await service.saveReplies(UID, [incoming({ externalId: 'teams:chat-2', draft: '' }) as never])
+    expect((await repo.listReplies(UID)).find((x) => x.externalId === 'teams:chat-2')).toMatchObject({ status: 'open', draft: '' })
+  })
+
   it('overschrijft een door Nino aangepast antwoord niet', async () => {
     const { deps, repo, auth } = await withToken()
     await call(deps, 'POST', '/replies', { replies: [incoming()] }, auth)

@@ -1,6 +1,6 @@
 import type { AppData, Reply, ReplyChannel, ReplyMessage, ReplyStatus, ReplyTarget } from '../model/types'
 
-/** Wat Claude (of een koppeling) aanlevert voor één gesprek. */
+/** Wat Claude (met concept) of de scan op de server (zonder concept: `draft` leeg) aanlevert voor één gesprek. */
 export interface IncomingReply {
   channel: ReplyChannel
   externalId: string
@@ -68,7 +68,8 @@ export const waitingReplies = (data: AppData) => data.replies.filter((r) => r.st
 /**
  * Een nieuwe ronde van Claude samenvoegen met wat er al staat (zelfde kanaal + externalId = zelfde gesprek).
  * - Nieuw gesprek → nieuwe kaart.
- * - Open kaart → berichten bijwerken; het antwoord alleen als Nino het niet zelf heeft aangepast.
+ * - Open kaart → berichten bijwerken; het antwoord alleen als Nino het niet zelf heeft aangepast
+ *   en er een nieuw voorstel is (de scan levert er geen, dan blijft het voorstel van Claude staan).
  * - Verstuurd of genegeerd, maar er is sindsdien een nieuw bericht van een ander → weer open met het nieuwe voorstel.
  * - Goedgekeurd of bezig met versturen → niet aanraken.
  */
@@ -97,6 +98,6 @@ export function mergeReply(existing: Reply | undefined, input: IncomingReply, st
     return { change: 'reopened', reply: { ...existing, ...base, projectId: input.projectId ?? existing.projectId, draft: input.draft, draftEdited: false, status: 'open', error: null, approvedAt: null, updatedAt: stamp } }
   }
   // open of failed
-  const draft = existing.draftEdited ? existing.draft : input.draft
+  const draft = existing.draftEdited || !input.draft ? existing.draft : input.draft
   return { change: 'updated', reply: { ...existing, ...base, projectId: input.projectId ?? existing.projectId, draft, updatedAt: stamp } }
 }

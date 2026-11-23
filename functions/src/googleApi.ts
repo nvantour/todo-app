@@ -59,8 +59,40 @@ export interface ChatMessage {
   annotations?: { type?: string; userMention?: { user?: ChatUser; type?: 'MENTION' | 'ADD' | string } }[]
 }
 
+export interface GmailHeader {
+  name: string
+  value: string
+}
+
+export interface GmailPart {
+  mimeType?: string
+  filename?: string
+  headers?: GmailHeader[]
+  body?: { data?: string; size?: number; attachmentId?: string }
+  parts?: GmailPart[]
+}
+
+export interface GmailMessage {
+  id: string
+  threadId?: string
+  labelIds?: string[]
+  snippet?: string
+  /** Ontvangen op: milliseconden sinds 1970, als tekst. */
+  internalDate?: string
+  payload?: GmailPart
+}
+
+export interface GmailThread {
+  id: string
+  messages?: GmailMessage[]
+}
+
+/** De kopregels die de scan nodig heeft om te bepalen of een mail van een mens is en aan wie hij gericht is. */
+export const MAIL_SCAN_HEADERS = ['From', 'To', 'Cc', 'Subject', 'List-Unsubscribe', 'List-Id', 'Auto-Submitted', 'Precedence', 'X-Autoreply', 'X-Autorespond']
+
 const CAL = 'https://www.googleapis.com/calendar/v3'
 const CHAT = 'https://chat.googleapis.com/v1'
+const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
 export interface GoogleApi {
   listEvents(timeMin: string, timeMax: string): Promise<CalEvent[]>
@@ -74,6 +106,10 @@ export interface GoogleApi {
   listMembers(space: string): Promise<ChatUser[]>
   /** Bericht plaatsen als de gebruiker; met `thread` als antwoord in die thread. */
   createMessage(space: string, text: string, thread?: string): Promise<ChatMessage>
+  /** Ids van mail-threads die bij een zoekopdracht in Gmail-taal horen (nieuwste eerst), hooguit `max`. */
+  listMailThreads(query: string, max: number): Promise<string[]>
+  /** Eén mail-thread: `metadata` = alleen kopregels en labels, `full` = met de tekst. */
+  getMailThread(id: string, format: 'metadata' | 'full'): Promise<GmailThread>
 }
 
 const MAX_PAGES = 10
@@ -135,6 +171,29 @@ export function createGoogleApi(accessToken: string, fetchImpl: Fetch = fetch): 
     listMembers: async (space) => {
       const members = await paged<{ member?: ChatUser }>(`${CHAT}/${space}/members`, { pageSize: '1000' }, 'memberships')
       return members.map((m) => m.member).filter((m): m is ChatUser => Boolean(m))
+    },
+
+    listMailThreads: async (query, max) => {
+      const out: string[] = []
+      let pageToken: string | undefined
+      for (let i = 0; i < MAX_PAGES && out.length < max; i++) {
+        const u = new URL(`${GMAIL}/threads`)
+        u.searchParams.set('q', query)
+        u.searchParams.set('maxResults', String(Math.min(100, max - out.length)))
+        if (pageToken) u.searchParams.set('pageToken', pageToken)
+        const body = await call<{ threads?: { id: string }[]; nextPageToken?: string }>(u.toString())
+        out.push(...(body.threads ?? []).map((t) => t.id))
+        pageToken = body.nextPageToken
+        if (!pageToken) break
+      }
+      return out
+    },
+
+    getMailThread: (id, format) => {
+      const u = new URL(`${GMAIL}/threads/${encodeURIComponent(id)}`)
+      u.searchParams.set('format', format)
+      if (format === 'metadata') for (const h of MAIL_SCAN_HEADERS) u.searchParams.append('metadataHeaders', h)
+      return call<GmailThread>(u.toString())
     },
   }
 }

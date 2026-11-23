@@ -10,7 +10,7 @@ import { detectClient, parseFilter, type TodoService } from './service'
 import { generateToken, hashToken } from './tokens'
 import { postAirtableComment, resolveAirtable } from './airtable'
 import { runCalendarScan, type PrepJudge } from './calendarScan'
-import { runChatScan } from './chatScan'
+import { runReplyScan } from './replyScan'
 import type { GoogleService } from './google'
 import type { PushService } from './push'
 import { scheduleTodo } from './schedule'
@@ -170,9 +170,10 @@ async function route(req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
     const g = need(deps.google, 'Koppelen met Google is nog niet ingesteld.')
     return json(200, await runCalendarScan({ repo: service.repo, service, google: g, ai: deps.prepJudge ?? null, onError: deps.onError }, uid))
   }
+  // De antwoorden-scan (Chat, mail, en via meldingsmails ook Teams en Slack). Het pad heet nog /scan/chat.
   if (path === '/scan/chat' && method === 'POST') {
     const g = need(deps.google, 'Koppelen met Google is nog niet ingesteld.')
-    return json(200, await runChatScan({ repo: service.repo, service, google: g, ai: null, onError: deps.onError }, uid))
+    return json(200, await runReplyScan({ repo: service.repo, service, google: g, ai: null, onError: deps.onError }, uid))
   }
 
   if (path === '/airtable/resolve' && method === 'POST') {

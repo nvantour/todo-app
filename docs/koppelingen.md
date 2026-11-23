@@ -106,7 +106,7 @@ Altijd JSON: `{ "error": { "code": "invalid_input", "message": "titel: Titel is 
 `POST /api/suggestions` — voorstel in de inbox:
 
 ```
-{ "title": "Reageren op vraag over SRM", "reason": "Wacht op antwoord", "source": { "type": "mail", "label": "Re: SRM in test 42", "url": "...", "externalId": "<threadId>" } }
+{ "title": "Uitzoeken of SRM in test 42 klopt", "reason": "Vraag in de mail", "source": { "type": "mail", "label": "Re: SRM in test 42", "url": "...", "externalId": "<threadId>" } }
 → 201 { "created": true, "suggestion": { ... } }
 → 200 { "created": false, "duplicateOf": "suggestion" | "todo", ... }   // bronitem bestaat al
 ```
@@ -117,7 +117,7 @@ Ontdubbelen op `source.type + source.externalId`, tegen alle voorstellen (ook ge
 
 `POST /api/todos/{id}/schedule` met `{ "minutes": 60 }` (15 tot 480; optioneel `"replace": true`) zoekt het eerstvolgende vrije blok in je agenda en maakt daar een afspraak met de titel van de taak. Antwoord: `{ todo, eventId, start, end, afterDue }`. `calendarEventId` staat daarna op de taak. Fouten: `already_scheduled` (409, tenzij `replace`), `no_free_slot` (409), `google_not_connected` / `google_reauth` / `google_scope_missing` (409), `not_available` (501, geen Google-instellingen op de server).
 
-`POST /api/scan/calendar` en `POST /api/scan/chat` starten de scan meteen voor jou (zelfde als de geplande). Antwoord `{ found, created, duplicates }`.
+`POST /api/scan/calendar` en `POST /api/scan/chat` starten de scan meteen voor jou (zelfde als de geplande). Antwoord `{ found, created, duplicates }`. `/scan/chat` is de antwoorden-scan (hoofdstuk 7): die maakt kaarten op Antwoorden, geen voorstellen.
 
 `POST /api/airtable/resolve` met `{ "url": "<Airtable-link>" }` geeft `{ baseId, baseName, tableId, recordId, recordName, label, projectId }` (zie hoofdstuk 5).
 
@@ -187,16 +187,18 @@ Plak je een Airtable-link in een invoerregel of in het detailpaneel ("Airtable-l
 - **Zonder server of sleutel** (of bij een fout, of als het token die base niet mag zien): de link blijft gewoon als bron staan, met het label "Airtable-record".
 - Sleutel: secret `AIRTABLE_API_TOKEN` (persoonlijk toegangstoken met `data.records:read` en `schema.bases:read`, en toegang tot de bases die je wilt kunnen plakken).
 
-## 7. Chat (`chatScan`)
+## 7. Antwoorden-scan (`chatScan`)
 
-Google Chat, werkaccount. Twee keer per werkdag (09:00 en 15:00) en op verzoek (`POST /api/scan/chat`). Kijkt naar de laatste **3 dagen**.
+Google Chat en mail (werkaccount), en via de meldingsmails ook Teams en Slack. Elk uur op werkdagen (08:00 t/m 18:00) en op verzoek (`POST /api/scan/chat`). De vondsten worden **kaarten op de tab Antwoorden**, zonder conceptantwoord; er komen geen voorstellen meer bij ("Reageren op …" bestaat niet meer). De volledige beschrijving staat in `docs/antwoorden.md`.
 
-**Wat telt als "hier moet ik nog op reageren":**
+**Wat telt in Google Chat als "hier moet ik nog op reageren"** (laatste 3 dagen):
 
 - **Directe berichten:** het laatste bericht van het gesprek is niet van jou en niet van een bot.
 - **Vermeldingen (@jou)** in spaces en groepsgesprekken: er is daarna geen bericht van jou in dezelfde thread (in een space zonder threads: geen later bericht van jou in de space). Per thread telt de laatste vermelding. @iedereen, berichten van bots, je eigen berichten en verwijderde berichten tellen niet. Een groepsgesprek zonder naam telt alleen via vermeldingen.
-- Voorstel: `source = { type: 'chat', label: <afzender, of de naam van de space bij een vermelding>, url: <link naar het gesprek>, externalId: <naam van het bericht, spaces/…/messages/…> }`, titel "Reageren op <afzender>: <eerste ±60 tekens van het bericht>". De titel komt uit het bericht zelf; er gaat niets naar Haiku.
-- **Ontdubbelen** op het bericht. Daarnaast maakt een nieuw bericht in een DM waarvoor al een open voorstel staat geen tweede voorstel.
+- Kaart: `channel: 'gchat'`, `externalId` = de thread (`spaces/…/threads/…`) of bij een DM de space, `target = { space, thread? }`, de laatste 8 berichten van het gesprek. Een DM is één kaart, hoeveel berichten er ook bijkomen.
+- Heb jij in het gesprek gereageerd, dan haalt de volgende scan de kaart weg.
+
+Antwoord van de scan: `{ found, created, duplicates, closed, channels: { gchat, mail, teams, slack }, warning? }`.
 
 **Wat de Chat API met jouw inlog wel en niet toelaat** (bron: de [Chat API-referentie](https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages/list)):
 

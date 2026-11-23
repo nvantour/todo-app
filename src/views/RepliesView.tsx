@@ -13,8 +13,9 @@ const time = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
 
 /**
- * Wie wacht er op een antwoord? Claude zet de kaarten klaar met /chats-ophalen; Nino past het antwoord aan
- * en verstuurt met het vinkje. Claude verstuurt zelf nooit.
+ * Wie wacht er op een antwoord? De scan op de server zet elk uur kaarten klaar (Google Chat, mail, en via
+ * meldingsmails ook Teams en Slack), zonder concept. Claude vult met /chats-ophalen de concepten aan en leest
+ * Teams en Slack volledig. Nino past het antwoord aan en verstuurt met het vinkje; niets gaat vanzelf weg.
  */
 export function RepliesView() {
   const data = useAppData()
@@ -45,7 +46,7 @@ export function RepliesView() {
       {shown.length === 0 && (
         <div className="empty">
           <strong>{filter === 'all' ? 'Niemand wacht op je' : `Niemand wacht op je in ${CHANNEL_NAME[filter]}`}</strong>
-          Typ <code>/chats-ophalen</code> in Claude om je openstaande gesprekken op te halen.
+          Google Chat en mail worden elk uur nagekeken. Typ <code>/chats-ophalen</code> in Claude voor alle kanalen, met een conceptantwoord erbij.
         </div>
       )}
 
@@ -62,6 +63,8 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
   const box = useRef<HTMLTextAreaElement>(null)
   const Icon = CHANNEL_ICON[reply.channel]
   const locked = reply.status === 'approved' || reply.status === 'sending' || reply.status === 'sent'
+  // Teams en Slack gaan via het verzendscript; dat heeft de link naar het juiste gesprek nodig.
+  const noAddress = (reply.channel === 'teams' || reply.channel === 'slack') && !reply.target.url
   const messages = showAll ? reply.messages : reply.messages.slice(-3)
 
   // Een nieuwe ronde kan het voorstel bijwerken zolang Nino niets heeft aangepast.
@@ -157,6 +160,7 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
         ref={box}
         className="reply__draft"
         aria-label="Jouw antwoord"
+        placeholder={noAddress ? `Antwoorden doe je in ${CHANNEL_NAME[reply.channel]} zelf: open het gesprek met de knop rechtsboven.` : 'Nog geen concept. Typ je antwoord, of laat Claude er een schrijven met /chats-ophalen.'}
         value={text}
         disabled={locked}
         onChange={(e) => setText(e.target.value)}
@@ -174,7 +178,12 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
             <button className="btn" onClick={() => dismissReply(reply)} title="Hoeft geen antwoord">
               <X size={15} /> Negeren
             </button>
-            <button className="btn is-primary" disabled={!text.trim()} onClick={() => void approveReply(reply, text)} title={SENT_BY_APP.includes(reply.channel) ? 'Nu versturen' : 'Versturen via de Mac mini'}>
+            <button
+              className="btn is-primary"
+              disabled={!text.trim() || noAddress}
+              onClick={() => void approveReply(reply, text)}
+              title={noAddress ? `Versturen kan hier niet: open het gesprek in ${CHANNEL_NAME[reply.channel]}` : SENT_BY_APP.includes(reply.channel) ? 'Nu versturen' : 'Versturen via de Mac mini'}
+            >
               <Check size={15} strokeWidth={2.5} /> Versturen
             </button>
           </>

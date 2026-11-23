@@ -13,7 +13,7 @@ Daarnaast zijn er vier geplande functies (Cloud Scheduler, tijd van Nederland):
 | Functie | Wanneer | Waarvoor |
 |---|---|---|
 | `calendarScan` | elke dag 07:00 | agenda van de komende 14 dagen doorlopen, voorstellen maken |
-| `chatScan` | werkdagen 09:00 en 15:00 | Google Chat: waar moet je nog op reageren |
+| `chatScan` | werkdagen elk uur, 08:00 t/m 18:00 | Antwoorden-scan: wie wacht op jou in Google Chat, mail, Teams en Slack → kaarten op Antwoorden |
 | `morningPush` | elke dag 08:00 | één melding met de taken van vandaag |
 | `dueTimePush` | elke 5 minuten, 06:00 tot 22:00 | melding voor taken waarvan de tijd is aangebroken |
 

@@ -1,7 +1,9 @@
+// Google Chat lezen voor de antwoorden-scan: in welke gesprekken wacht iemand op jou?
+// Vaste herkenning, geen AI. replyScan.ts zet de vondsten als kaart op de tab Antwoorden.
+import type { IncomingReply } from '../../src/data/replies'
+import type { Reply, ReplyMessage } from '../../src/model/types'
 import { HttpError } from './errors'
-import { hasChat } from './google'
 import type { ChatMessage, ChatSpace, ChatUser, GoogleApi } from './googleApi'
-import type { ScanDeps, ScanResult } from './calendarScan'
 
 /** Hoeveel dagen terug we kijken. */
 export const CHAT_DAYS = 3
@@ -11,6 +13,8 @@ const CONCURRENCY = 5
 export interface SpaceMessages {
   space: ChatSpace
   messages: ChatMessage[]
+  /** De berichten van deze space waren deze ronde niet te lezen. */
+  unread?: boolean
 }
 
 export interface ReplyCandidate {
@@ -68,19 +72,11 @@ export function findReplyCandidates(data: SpaceMessages[], meId: string): ReplyC
   return out
 }
 
-/** Kort stuk tekst voor in de titel: één regel, zonder opmaak, afgekapt op een woord. */
-export function shortGist(text: string | undefined, max = 60): string {
-  const flat = (text ?? '').replace(/<[^>]+>/g, ' ').replace(/[*_~`]/g, '').replace(/\s+/g, ' ').trim()
-  if (flat.length <= max) return flat
-  const cut = flat.slice(0, max)
-  return `${cut.slice(0, Math.max(20, cut.lastIndexOf(' ')))}…`
-}
-
 export function spaceUrl(space: ChatSpace): string {
   return space.spaceUri ?? `https://mail.google.com/mail/u/0/#chat/space/${space.name.replace(/^spaces\//, '')}`
 }
 
-async function pool<T, R>(items: T[], size: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+export async function pool<T, R>(items: T[], size: number, fn: (x: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length)
   let next = 0
   await Promise.all(
@@ -94,11 +90,38 @@ async function pool<T, R>(items: T[], size: number, fn: (x: T) => Promise<R>): P
   return out
 }
 
-/** Namen van afzenders die de API niet meegaf, opgezocht via de ledenlijst van de space. */
-async function fillNames(api: GoogleApi, cands: ReplyCandidate[], onError?: (e: unknown) => void) {
-  const missing = [...new Set(cands.filter((c) => !c.senderName).map((c) => c.space.name))]
+/** Hoeveel berichten van het gesprek op de kaart komen. */
+const SHOWN = 8
+const MAX_TEXT = 4000
+
+const live = (messages: ChatMessage[]) => messages.filter((m) => !m.deleteTime && m.createTime).sort((a, b) => t(a) - t(b))
+const toIso = (v: string | undefined) => (v && Date.parse(v) ? new Date(v).toISOString() : null)
+
+/** Leest de chats van de laatste dagen. Geeft een fout als geen enkele chat te lezen was. */
+export async function readChats(api: GoogleApi, cutoff: string, onError?: (e: unknown) => void): Promise<SpaceMessages[]> {
+  const spaces = (await api.listSpaces())
+    .filter((s) => !s.singleUserBotDm && (!s.lastActiveTime || s.lastActiveTime >= cutoff))
+    .sort((a, b) => (b.lastActiveTime ?? '').localeCompare(a.lastActiveTime ?? ''))
+    .slice(0, MAX_SPACES)
+
+  let failed = 0
+  const data = await pool(spaces, CONCURRENCY, async (space): Promise<SpaceMessages> => {
+    try {
+      return { space, messages: await api.listMessages(space.name, cutoff) }
+    } catch (e) {
+      failed++
+      onError?.(e)
+      return { space, messages: [], unread: true }
+    }
+  })
+  if (spaces.length > 0 && failed === spaces.length) throw new HttpError(502, 'google_unavailable', 'Geen enkele chat was te lezen. Is de Google Chat API aangezet?')
+  return data
+}
+
+/** Namen die de API niet bij het bericht meegaf, opgezocht via de ledenlijst van de space. */
+async function memberNames(api: GoogleApi, spaces: string[], onError?: (e: unknown) => void): Promise<Map<string, string>> {
   const names = new Map<string, string>()
-  await pool(missing, CONCURRENCY, async (space) => {
+  await pool([...new Set(spaces)], CONCURRENCY, async (space) => {
     try {
       const members: ChatUser[] = await api.listMembers(space)
       for (const m of members) if (m.name && m.displayName) names.set(`${space}|${m.name}`, m.displayName)
@@ -106,60 +129,65 @@ async function fillNames(api: GoogleApi, cands: ReplyCandidate[], onError?: (e: 
       onError?.(e)
     }
   })
-  for (const c of cands) if (!c.senderName) c.senderName = names.get(`${c.space.name}|users/${c.senderId}`) ?? null
+  return names
 }
 
-export async function runChatScan(deps: ScanDeps, uid: string): Promise<ScanResult> {
-  const { repo, service } = deps
-  const stamp = service.stamp()
-  try {
-    const conn = await deps.google.connection(uid)
-    if (!hasChat(conn)) throw new HttpError(409, 'google_scope_missing', 'Google Chat is niet gekoppeld (toestemming ontbreekt). Koppel opnieuw in Instellingen.')
-    const api = await deps.google.api(uid)
-    const cutoff = new Date(new Date(stamp).getTime() - CHAT_DAYS * 86_400_000).toISOString()
+/**
+ * Kaarten voor de tab Antwoorden: één per gesprek waar iemand op jou wacht, met de laatste berichten
+ * en zonder conceptantwoord (dat schrijft Claude later, of jij zelf).
+ * Een DM of een space zonder threads is één gesprek; in een space met threads is elke thread er een.
+ */
+export async function chatCards(api: GoogleApi, data: SpaceMessages[], meId: string, onError?: (e: unknown) => void): Promise<IncomingReply[]> {
+  const me = `users/${meId}`
+  const picked = findReplyCandidates(data, meId).map((c) => {
+    const all = live(data.find((d) => d.space.name === c.space.name)?.messages ?? [])
+    const threaded = c.kind === 'mention' && c.space.spaceThreadingState !== 'UNTHREADED_MESSAGES'
+    const thread = threaded ? c.message.thread?.name : undefined
+    return { c, thread, shown: (thread ? all.filter((m) => m.thread?.name === thread) : all).slice(-SHOWN) }
+  })
+  const nameless = picked.filter((p) => p.shown.some((m) => !m.sender?.displayName)).map((p) => p.c.space.name)
+  const names = await memberNames(api, nameless, onError)
 
-    const spaces = (await api.listSpaces())
-      .filter((s) => !s.singleUserBotDm && (!s.lastActiveTime || s.lastActiveTime >= cutoff))
-      .sort((a, b) => (b.lastActiveTime ?? '').localeCompare(a.lastActiveTime ?? ''))
-      .slice(0, MAX_SPACES)
-
-    let failed = 0
-    const data = await pool(spaces, CONCURRENCY, async (space): Promise<SpaceMessages> => {
-      try {
-        return { space, messages: await api.listMessages(space.name, cutoff) }
-      } catch (e) {
-        failed++
-        deps.onError?.(e)
-        return { space, messages: [] }
-      }
-    })
-    if (spaces.length > 0 && failed === spaces.length) throw new HttpError(502, 'google_unavailable', 'Geen enkele chat was te lezen. Is de Google Chat API aangezet?')
-
-    const cands = findReplyCandidates(data, conn.googleId)
-    await fillNames(api, cands, deps.onError)
-
-    const suggestions = await repo.listSuggestions(uid)
-    let created = 0
-    let found = 0
-    for (const c of cands) {
-      // één open voorstel per gesprek is genoeg: een nieuw bericht in dezelfde DM maakt geen tweede
-      if (c.kind === 'dm' && suggestions.some((s) => s.status === 'open' && s.source.type === 'chat' && s.source.externalId?.startsWith(`${c.space.name}/`))) continue
-      found++
-      const sender = c.senderName ?? 'een collega'
-      const label = c.kind === 'dm' ? sender : (c.space.displayName ?? sender)
-      const gist = shortGist(c.message.text)
-      const r = await service.suggest(uid, {
-        title: `Reageren op ${sender}${gist ? `: ${gist}` : ''}`,
-        reason: c.kind === 'dm' ? `${sender} stuurde je een bericht waar je nog niet op hebt gereageerd.` : `${sender} noemde je in ${c.space.displayName ?? 'een gesprek'}; je hebt nog niet gereageerd.`,
-        bucket: 'now',
-        source: { type: 'chat', label, url: spaceUrl(c.space), externalId: c.message.name },
-      })
-      if (r.created) created++
+  return picked.map(({ c, thread, shown }): IncomingReply => {
+    const nameOf = (m: ChatMessage) => m.sender?.displayName ?? names.get(`${c.space.name}|${m.sender?.name}`) ?? null
+    const who = nameOf(c.message) ?? 'een collega'
+    return {
+      channel: 'gchat',
+      externalId: thread ?? c.space.name,
+      title: c.kind === 'dm' ? `DM ${who}` : (c.space.displayName ?? `Gesprek met ${who}`),
+      who,
+      url: spaceUrl(c.space),
+      target: thread ? { space: c.space.name, thread } : { space: c.space.name },
+      messages: shown.map((m): ReplyMessage => ({
+        author: nameOf(m) ?? 'Onbekend',
+        text: (m.text ?? '').slice(0, MAX_TEXT),
+        at: toIso(m.createTime),
+        ...(m.sender?.name === me ? { mine: true } : {}),
+      })),
+      draft: '',
+      reason:
+        c.kind === 'dm'
+          ? `${who} stuurde je een bericht waar je nog niet op hebt gereageerd.`
+          : `${who} noemde je in ${c.space.displayName ?? 'een gesprek'}; je hebt nog niet gereageerd.`,
     }
-    await repo.saveState(uid, { lastChatScan: { at: stamp, found, created } })
-    return { found, created, duplicates: found - created }
-  } catch (e) {
-    await repo.saveState(uid, { lastChatScan: { at: stamp, found: 0, created: 0, error: e instanceof HttpError ? e.message : 'De scan is mislukt.' } }).catch(() => undefined)
-    throw e
-  }
+  })
+}
+
+/** Wanneer de ander voor het laatst iets zei op deze kaart (ms); zonder tijden: wanneer de kaart is gemaakt. */
+export function lastOtherAt(reply: Pick<Reply, 'messages' | 'createdAt'>): number {
+  const times = reply.messages.filter((m) => !m.mine && m.at).map((m) => Date.parse(m.at!) || 0)
+  return times.length ? Math.max(...times) : Date.parse(reply.createdAt) || 0
+}
+
+/**
+ * Heb jij in dit gesprek gereageerd ná het laatste bericht van de ander op de kaart?
+ * Alleen "ja" met bewijs: de space is deze ronde gelezen en er staat een later bericht van jou in.
+ */
+export function chatAnswered(reply: Pick<Reply, 'target' | 'messages' | 'createdAt'>, data: SpaceMessages[], meId: string): boolean {
+  const found = data.find((d) => d.space.name === reply.target.space)
+  if (!found || found.unread) return false
+  const me = `users/${meId}`
+  const since = lastOtherAt(reply)
+  const perThread = found.space.spaceType !== 'DIRECT_MESSAGE' && found.space.spaceThreadingState !== 'UNTHREADED_MESSAGES' && !!reply.target.thread
+  return live(found.messages).some((m) => m.sender?.name === me && t(m) > since && (!perThread || m.thread?.name === reply.target.thread))
 }

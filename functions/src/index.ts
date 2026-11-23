@@ -203,9 +203,12 @@ export const calendarScan = onSchedule(
   async () => void (await calendarScanAll(jobDeps())),
 )
 
-/** Twee keer per werkdag (09:00 en 15:00): chatberichten waar nog op gereageerd moet worden. */
+/**
+ * Elk uur op werkdagen (08:00 t/m 18:00): wie wacht op een antwoord? Google Chat, mail en de meldingsmails
+ * van Teams en Slack → kaarten op de tab Antwoorden. De functie heet nog chatScan (hernoemen = opnieuw aanmaken).
+ */
 export const chatScan = onSchedule(
-  { schedule: '0 9,15 * * 1-5', timeZone: 'Europe/Amsterdam', region: REGION, secrets: SCAN_SECRETS, memory: '512MiB', timeoutSeconds: 300, retryCount: 0 },
+  { schedule: '0 8-18 * * 1-5', timeZone: 'Europe/Amsterdam', region: REGION, secrets: SCAN_SECRETS, memory: '512MiB', timeoutSeconds: 300, retryCount: 0 },
   async () => void (await chatScanAll(jobDeps())),
 )
 
