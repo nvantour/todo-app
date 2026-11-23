@@ -1,6 +1,6 @@
 import type { AppData, Bucket, Discussion, Todo } from '../model/types'
 import { openItemCount } from '../data/logic'
-import { addDays, todayISO, weekStart } from './dates'
+import { addDays, todayISO, weekEnd, weekStart } from './dates'
 
 /** Eerst op datum (zonder datum achteraan), daarna op eigen volgorde. */
 const byDueThenOrder = (a: Todo, b: Todo) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || a.order - b.order
@@ -21,12 +21,16 @@ export function effectiveBucket(todo: Todo, today = todayISO()): Bucket {
 export type DayGroup = 'today' | 'week' | 'later'
 
 /**
- * In welke groep een open taak staat. Een datum van vandaag of eerder wint altijd (dan is het Vandaag);
- * "Deze week" geldt alleen in de week waarin je de taak daar neerzette.
+ * In welke groep een open taak staat. De datum is leidend: vandaag of eerder = Vandaag,
+ * later deze week (t/m zondag) = Deze week, daarna = Om niet te vergeten (schuift vanzelf op als de dag komt).
+ * Zonder datum: wat je zelf koos; "Deze week" geldt alleen in de week waarin je de taak daar neerzette.
  */
 export function dayGroup(todo: Todo, today = todayISO()): DayGroup {
-  if (effectiveBucket(todo, today) === 'later') return 'later'
-  if (todo.due !== null && todo.due <= today) return 'today'
+  if (todo.due !== null) {
+    if (todo.due <= today) return 'today'
+    return todo.due <= weekEnd(today) ? 'week' : 'later'
+  }
+  if (todo.bucket === 'later') return 'later'
   return todo.weekOf === weekStart(today) ? 'week' : 'today'
 }
 
@@ -38,15 +42,17 @@ export function todosInGroup(data: AppData, group: DayGroup, today = todayISO())
 
 /**
  * Wat er verandert als je een taak naar een groep sleept, of null als dat niet kan.
- * Een datum van vandaag of eerder houdt een taak op Vandaag; bij verplaatsen gaat die datum eraf
- * (een herhalende taak blijft staan, die datum hoort bij het ritme).
+ * Past de datum niet bij de nieuwe groep, dan schuift die mee: naar Vandaag wordt de datum vandaag,
+ * naar Deze week of Om niet te vergeten gaat de datum eraf. Een herhalende taak houdt haar ritme en blijft staan.
  */
 export function moveToGroup(todo: Todo, group: DayGroup, today = todayISO()): Partial<Todo> | null {
   if (dayGroup(todo, today) === group) return null
-  const pinned = todo.due !== null && todo.due <= today
-  if (group !== 'today' && pinned && todo.recurrence) return null
-  const clearDue: Partial<Todo> = group !== 'today' && pinned ? { due: null, dueTime: null } : {}
-  if (group === 'today') return { bucket: 'now', weekOf: null }
+  const due = todo.due
+  const end = weekEnd(today)
+  const fits = due === null || (group === 'today' ? due <= today : group === 'week' ? due > today && due <= end : due > end)
+  if (!fits && todo.recurrence) return null
+  if (group === 'today') return { bucket: 'now', weekOf: null, ...(fits ? {} : { due: today }) }
+  const clearDue: Partial<Todo> = fits ? {} : { due: null, dueTime: null }
   if (group === 'week') return { bucket: 'now', weekOf: weekStart(today), ...clearDue }
   return { bucket: 'later', weekOf: null, ...clearDue }
 }

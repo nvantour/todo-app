@@ -41,23 +41,31 @@ const wed = '2026-11-25'
 const t = (over: Partial<Todo> = {}): Todo => ({ ...buildTodo({ title: 't' }, 0), ...over })
 
 describe('Vandaag en Deze week', () => {
-  it('zonder week = Vandaag; geparkeerd deze week = Deze week; vorige week = weer Vandaag', () => {
+  it('zonder datum: zelf gekozen; geparkeerd vorige week = weer Vandaag', () => {
     expect(dayGroup(t(), wed)).toBe('today')
     expect(dayGroup(t({ weekOf: '2026-11-23' }), wed)).toBe('week')
     expect(dayGroup(t({ weekOf: '2026-11-16' }), wed)).toBe('today')
     expect(dayGroup(t({ bucket: 'later' }), wed)).toBe('later')
   })
-  it('een datum van vandaag of eerder wint van Deze week', () => {
-    expect(dayGroup(t({ weekOf: '2026-11-23', due: wed }), wed)).toBe('today')
-    expect(dayGroup(t({ weekOf: '2026-11-23', due: '2026-11-27' }), wed)).toBe('week')
+  it('de datum is leidend', () => {
+    expect(dayGroup(t({ due: '2026-11-24' }), wed)).toBe('today') // gisteren
+    expect(dayGroup(t({ due: wed, weekOf: '2026-11-23' }), wed)).toBe('today')
+    expect(dayGroup(t({ due: '2026-11-26' }), wed)).toBe('week') // donderdag
+    expect(dayGroup(t({ due: '2026-11-29', bucket: 'later' }), wed)).toBe('week') // zondag
+    expect(dayGroup(t({ due: '2026-11-30' }), wed)).toBe('later') // volgende week
   })
-  it('verplaatsen zet de week, en haalt een datum van vandaag eraf', () => {
+  it('slepen zonder datum zet alleen de groep', () => {
     expect(moveToGroup(t(), 'week', wed)).toEqual({ bucket: 'now', weekOf: '2026-11-23' })
     expect(moveToGroup(t({ weekOf: '2026-11-23' }), 'today', wed)).toEqual({ bucket: 'now', weekOf: null })
-    expect(moveToGroup(t({ due: wed, dueTime: '10:00' }), 'week', wed)).toEqual({ bucket: 'now', weekOf: '2026-11-23', due: null, dueTime: null })
     expect(moveToGroup(t({ bucket: 'later' }), 'later', wed)).toBeNull()
   })
-  it('een herhalende taak van vandaag blijft staan', () => {
+  it('slepen schuift de datum mee', () => {
+    expect(moveToGroup(t({ due: '2026-11-27' }), 'today', wed)).toEqual({ bucket: 'now', weekOf: null, due: wed })
+    expect(moveToGroup(t({ due: wed, dueTime: '10:00' }), 'week', wed)).toEqual({ bucket: 'now', weekOf: '2026-11-23', due: null, dueTime: null })
+    expect(moveToGroup(t({ due: '2026-11-27' }), 'later', wed)).toEqual({ bucket: 'later', weekOf: null, due: null, dueTime: null })
+    expect(moveToGroup(t({ due: '2026-12-02' }), 'week', wed)).toEqual({ bucket: 'now', weekOf: '2026-11-23', due: null, dueTime: null })
+  })
+  it('een herhalende taak houdt haar datum en blijft staan', () => {
     expect(moveToGroup(t({ due: wed, recurrence: { freq: 'day', interval: 1 } as Todo['recurrence'] }), 'week', wed)).toBeNull()
   })
 })
