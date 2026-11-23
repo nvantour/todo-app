@@ -77,3 +77,44 @@ export const deviceSchema = z.object({
   token: z.string().trim().min(20).max(4096),
   label: z.string().trim().min(1).max(80).default('Apparaat'),
 })
+
+// --- Antwoorden ---
+
+const replyMessageSchema = z.object({
+  author: z.string().max(200),
+  text: z.string().max(10_000),
+  at: z.string().max(40).nullable().optional().transform((v) => v ?? null),
+  mine: z.boolean().optional(),
+})
+
+export const incomingReplySchema = z.object({
+  channel: z.enum(['mail', 'gchat', 'slack', 'teams']),
+  externalId: z.string().trim().min(1).max(300),
+  title: z.string().trim().min(1).max(300),
+  who: z.string().max(300).default(''),
+  projectId: z.string().max(100).nullable().optional(),
+  url: z.string().max(2000).nullable().optional(),
+  target: z.object({
+    threadId: z.string().max(200).optional(),
+    space: z.string().max(200).optional(),
+    thread: z.string().max(300).optional(),
+    url: z.string().max(2000).optional(),
+    channel: z.string().max(100).optional(),
+    ts: z.string().max(100).optional(),
+  }),
+  messages: z.array(replyMessageSchema).max(50),
+  draft: z.string().trim().min(1, 'Een voorstel voor het antwoord is verplicht').max(10_000),
+  reason: z.string().max(1000).optional(),
+})
+
+export const repliesInSchema = z.object({ replies: z.array(incomingReplySchema).min(1).max(100) })
+
+/** Alleen het verzendscript: voortgang van een goedgekeurd antwoord. Goedkeuren zelf kan alleen in de app. */
+export const replyResultSchema = z.object({
+  status: z.enum(['sending', 'sent', 'failed']),
+  error: z.string().max(500).optional(),
+})
+
+export const replySendSchema = z.object({ text: z.string().trim().min(1).max(10_000) })
+
+export type IncomingReplyInput = z.infer<typeof incomingReplySchema>

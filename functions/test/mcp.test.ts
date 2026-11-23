@@ -21,7 +21,7 @@ describe('MCP-tools', () => {
   it('biedt precies de afgesproken tools aan', async () => {
     const { client } = await connect()
     const names = (await client.listTools()).tools.map((t) => t.name).sort()
-    expect(names).toEqual(['add_todo', 'complete_todo', 'get_brief', 'list_projects', 'list_todos', 'schedule_todo', 'suggest_todo', 'update_todo'])
+    expect(names).toEqual(['add_todo', 'complete_todo', 'get_brief', 'list_projects', 'list_replies', 'list_todos', 'save_reply_drafts', 'schedule_todo', 'suggest_todo', 'update_todo'])
   })
 
   it('geeft in de beschrijvingen de afspraak add_todo / suggest_todo mee', async () => {

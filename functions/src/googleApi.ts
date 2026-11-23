@@ -72,6 +72,8 @@ export interface GoogleApi {
   listMessages(space: string, afterISO: string): Promise<ChatMessage[]>
   /** Leden van een space (voor namen). */
   listMembers(space: string): Promise<ChatUser[]>
+  /** Bericht plaatsen als de gebruiker; met `thread` als antwoord in die thread. */
+  createMessage(space: string, text: string, thread?: string): Promise<ChatMessage>
 }
 
 const MAX_PAGES = 10
@@ -123,6 +125,12 @@ export function createGoogleApi(accessToken: string, fetchImpl: Fetch = fetch): 
 
     listMessages: (space, afterISO) =>
       paged<ChatMessage>(`${CHAT}/${space}/messages`, { pageSize: '1000', filter: `createTime > "${afterISO}"` }, 'messages'),
+
+    createMessage: (space, text, thread) => {
+      const u = new URL(`${CHAT}/${space}/messages`)
+      if (thread) u.searchParams.set('messageReplyOption', 'REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD')
+      return call<ChatMessage>(u.toString(), { method: 'POST', body: JSON.stringify(thread ? { text, thread: { name: thread } } : { text }) })
+    },
 
     listMembers: async (space) => {
       const members = await paged<{ member?: ChatUser }>(`${CHAT}/${space}/members`, { pageSize: '1000' }, 'memberships')

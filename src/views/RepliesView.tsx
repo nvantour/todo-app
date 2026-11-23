@@ -1,0 +1,205 @@
+import { useEffect, useRef, useState } from 'react'
+import { Check, ExternalLink, Hash, ListPlus, Mail, MessageSquare, RotateCcw, Users, X, type LucideIcon } from 'lucide-react'
+import type { Reply, ReplyChannel } from '../model/types'
+import { store, useAppData } from '../data/store'
+import { CHANNEL_NAME, SENT_BY_APP, visibleReplies } from '../data/replies'
+import { approveReply, dismissReply, reopenReply } from '../data/sendReply'
+import { isInternal } from '../lib/sources'
+import { Link } from 'react-router-dom'
+
+const CHANNEL_ICON: Record<ReplyChannel, LucideIcon> = { mail: Mail, gchat: MessageSquare, slack: Hash, teams: Users }
+
+const time = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+
+/**
+ * Wie wacht er op een antwoord? Claude zet de kaarten klaar met /chats-ophalen; Nino past het antwoord aan
+ * en verstuurt met het vinkje. Claude verstuurt zelf nooit.
+ */
+export function RepliesView() {
+  const data = useAppData()
+  const replies = visibleReplies(data)
+  const [filter, setFilter] = useState<ReplyChannel | 'all'>('all')
+  const channels = (['mail', 'gchat', 'slack', 'teams'] as ReplyChannel[]).filter((c) => replies.some((r) => r.channel === c))
+  const shown = filter === 'all' ? replies : replies.filter((r) => r.channel === filter)
+
+  return (
+    <>
+      <header className="view-header">
+        <h1>Antwoorden</h1>
+        <p>Wie wacht er op jou. Pas het antwoord aan en verstuur met het vinkje.</p>
+      </header>
+
+      {channels.length > 1 && (
+        <div className="seg reply-filter" role="group" aria-label="Kanaal">
+          <button className={filter === 'all' ? 'is-on' : ''} onClick={() => setFilter('all')}>
+            Alles
+          </button>
+          {channels.map((c) => (
+            <button key={c} className={filter === c ? 'is-on' : ''} onClick={() => setFilter(c)}>
+              {CHANNEL_NAME[c]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {shown.length === 0 && (
+        <div className="empty">
+          <strong>Niemand wacht op je</strong>
+          Typ <code>/chats-ophalen</code> in Claude om je openstaande chats en mails op te halen.
+        </div>
+      )}
+
+      {shown.map((r) => (
+        <ReplyCard key={r.id} reply={r} projectName={data.projects.find((p) => p.id === r.projectId)} />
+      ))}
+    </>
+  )
+}
+
+function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name: string; color: string } }) {
+  const [text, setText] = useState(reply.draft)
+  const [showAll, setShowAll] = useState(false)
+  const box = useRef<HTMLTextAreaElement>(null)
+  const Icon = CHANNEL_ICON[reply.channel]
+  const locked = reply.status === 'approved' || reply.status === 'sending' || reply.status === 'sent'
+  const messages = showAll ? reply.messages : reply.messages.slice(-3)
+
+  // Een nieuwe ronde kan het voorstel bijwerken zolang Nino niets heeft aangepast.
+  const [seenDraft, setSeenDraft] = useState(reply.draft)
+  if (reply.draft !== seenDraft) {
+    setSeenDraft(reply.draft)
+    if (!reply.draftEdited || reply.draft === text) setText(reply.draft)
+  }
+
+  // Tekstvak meegroeien met de inhoud, ook als de breedte verandert (eerste opbouw, venster groter/kleiner).
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    const grow = () => {
+      el.style.height = 'auto'
+      const next = `${el.scrollHeight + 2}px`
+      el.style.height = next
+    }
+    grow()
+    let width = el.clientWidth
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth === width) return
+      width = el.clientWidth
+      grow()
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [text])
+
+  function saveDraft() {
+    if (text !== reply.draft) store.updateReply(reply.id, { draft: text, draftEdited: true })
+  }
+
+  function makeTask() {
+    store.addTodo({
+      title: `Antwoorden: ${reply.title}`,
+      note: reply.reason,
+      projectId: reply.projectId,
+      source: { type: reply.channel === 'mail' ? 'mail' : 'chat', label: `${CHANNEL_NAME[reply.channel]} · ${reply.title}`, url: reply.url ?? undefined, externalId: reply.externalId },
+    })
+    dismissReply(reply)
+  }
+
+  return (
+    <article className={`reply is-${reply.status}`} aria-label={`${CHANNEL_NAME[reply.channel]}: ${reply.title}`}>
+      <header className="reply__head">
+        <span className="reply__channel" title={CHANNEL_NAME[reply.channel]}>
+          <Icon size={14} />
+        </span>
+        <div className="reply__who">
+          <strong>{reply.who || reply.title}</strong>
+          <span>
+            {reply.who ? reply.title : CHANNEL_NAME[reply.channel]}
+            {projectName && (
+              <span className="tag" style={{ '--c': projectName.color } as React.CSSProperties}>
+                <i />
+                {projectName.name}
+              </span>
+            )}
+          </span>
+        </div>
+        {reply.url &&
+          (isInternal(reply.url) ? (
+            <Link className="icon-btn" to={reply.url} title="Open het gesprek" aria-label="Open het gesprek">
+              <ExternalLink size={15} />
+            </Link>
+          ) : (
+            <a className="icon-btn" href={reply.url} target="_blank" rel="noreferrer" title="Open het gesprek" aria-label="Open het gesprek">
+              <ExternalLink size={15} />
+            </a>
+          ))}
+      </header>
+
+      {reply.reason && <p className="reply__reason">{reply.reason}</p>}
+
+      <div className="reply__thread">
+        {reply.messages.length > 3 && !showAll && (
+          <button className="reply__more" onClick={() => setShowAll(true)}>
+            {reply.messages.length - 3} eerdere berichten
+          </button>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} className={`reply__msg${m.mine ? ' is-mine' : ''}`}>
+            <div className="reply__meta">
+              <b>{m.mine ? 'Jij' : m.author}</b> {time(m.at)}
+            </div>
+            <div className="reply__text">{m.text}</div>
+          </div>
+        ))}
+      </div>
+
+      <textarea
+        ref={box}
+        className="reply__draft"
+        aria-label="Jouw antwoord"
+        value={text}
+        disabled={locked}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={saveDraft}
+        rows={2}
+      />
+
+      <footer className="reply__foot">
+        <Status reply={reply} />
+        {reply.status === 'open' || reply.status === 'failed' ? (
+          <>
+            <button className="btn" onClick={makeTask} title="Geen snel antwoord: maak er een taak van">
+              <ListPlus size={15} /> Taak
+            </button>
+            <button className="btn" onClick={() => dismissReply(reply)} title="Hoeft geen antwoord">
+              <X size={15} /> Negeren
+            </button>
+            <button className="btn is-primary" disabled={!text.trim()} onClick={() => void approveReply(reply, text)} title={SENT_BY_APP.includes(reply.channel) ? 'Nu versturen' : 'Versturen via de Mac mini'}>
+              <Check size={15} strokeWidth={2.5} /> Versturen
+            </button>
+          </>
+        ) : reply.status === 'approved' ? (
+          <button className="btn" onClick={() => reopenReply(reply)} title="Nog niet versturen">
+            <RotateCcw size={15} /> Terugzetten
+          </button>
+        ) : null}
+      </footer>
+    </article>
+  )
+}
+
+function Status({ reply }: { reply: Reply }) {
+  switch (reply.status) {
+    case 'approved':
+      return <span className="reply__status">Wacht op de Mac mini…</span>
+    case 'sending':
+      return <span className="reply__status">Versturen…</span>
+    case 'sent':
+      return <span className="reply__status is-ok">Verstuurd {time(reply.sentAt)}</span>
+    case 'failed':
+      return <span className="reply__status is-bad">Mislukt: {reply.error ?? 'onbekende fout'}</span>
+    default:
+      return <span className="reply__status">{CHANNEL_NAME[reply.channel]}</span>
+  }
+}

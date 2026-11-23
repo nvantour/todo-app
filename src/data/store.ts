@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { AppData, CalendarRule, Discussion, NewTodo, Project, Suggestion, TaskStatus, Todo } from '../model/types'
+import type { AppData, CalendarRule, Discussion, NewTodo, Project, Reply, Suggestion, TaskStatus, Todo } from '../model/types'
 import { detectProject } from '../lib/detect'
 import { seedData } from './seed'
 import { buildDiscussion, buildProject, buildRule, buildTodo, nowISO, preparePatch, todoFromSuggestion, toggleChanges } from './logic'
@@ -34,6 +34,8 @@ export interface Store {
   deleteDiscussion(id: string): void
   /** Kolommen van het bord: de hele lijst in één keer (toevoegen, hernoemen, verwijderen, volgorde). */
   setStatuses(list: TaskStatus[]): void
+  /** Tab Antwoorden: tekst aanpassen, status zetten (vinkje, negeren). Nieuwe kaarten komen van de server. */
+  updateReply(id: string, patch: Partial<Reply>): void
 }
 
 const KEY = 'todo-app:v2'
@@ -48,7 +50,7 @@ export function createLocalStore(): Store {
       // oudere opslag heeft nog geen 'discussions': val terug op een lege lijst
       if (raw) {
         const saved = JSON.parse(raw) as Partial<AppData>
-        return { ...(saved as AppData), discussions: saved.discussions ?? [], statuses: saved.statuses ?? [] }
+        return { ...(saved as AppData), discussions: saved.discussions ?? [], statuses: saved.statuses ?? [], replies: saved.replies ?? [] }
       }
     } catch {
       /* opslag niet beschikbaar: start met voorbeelddata */
@@ -149,6 +151,9 @@ export function createLocalStore(): Store {
     setStatuses(list) {
       commit({ ...data, statuses: list })
     },
+    updateReply(id, patch) {
+      commit({ ...data, replies: data.replies.map((r) => (r.id === id ? { ...r, ...patch, id, updatedAt: nowISO() } : r)) })
+    },
   }
 }
 
@@ -189,6 +194,7 @@ export const store: Store = {
   updateDiscussion: (id, patch) => backend.updateDiscussion(id, patch),
   deleteDiscussion: (id) => backend.deleteDiscussion(id),
   setStatuses: (list) => backend.setStatuses(list),
+  updateReply: (id, patch) => backend.updateReply(id, patch),
 }
 
 export function useAppData(): AppData {

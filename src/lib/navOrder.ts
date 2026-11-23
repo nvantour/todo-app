@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 
 /** De pagina's in het hoofdmenu. Instellingen en Zoeken staan vast en tellen hier niet mee. */
-export const NAV_IDS = ['vandaag', 'taken', 'bespreken', 'voorstellen', 'meetings', 'mail', 'klanten'] as const
+export const NAV_IDS = ['vandaag', 'taken', 'bespreken', 'voorstellen', 'meetings', 'mail', 'antwoorden', 'klanten'] as const
 export type NavId = (typeof NAV_IDS)[number]
 
 /** Hoeveel menu-items op de telefoon in de onderbalk passen; de rest staat onder "Meer". */

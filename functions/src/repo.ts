@@ -1,4 +1,4 @@
-import type { CalendarRule, Project, Suggestion, Todo } from '../../src/model/types'
+import type { CalendarRule, Project, Reply, Suggestion, Todo } from '../../src/model/types'
 import type { TokenKind } from './tokens'
 
 /** Een toegangsbewijs. Het document-id is de SHA-256-hash van het token (zo zoek je op hash zonder iets af te lopen). */
@@ -104,6 +104,11 @@ export interface Repo {
   /** Haalt de state op en verwijdert hem meteen: werkt maar één keer. */
   consumeGoogleState(hash: string): Promise<GoogleState | null>
 
+  /** Tab Antwoorden. */
+  listReplies(uid: string): Promise<Reply[]>
+  getReply(uid: string, id: string): Promise<Reply | null>
+  saveReply(uid: string, reply: Reply): Promise<void>
+
   listDevices(uid: string): Promise<PushDevice[]>
   /** Alle apparaten van alle gebruikers (voor de geplande meldingen). */
   listAllDevices(): Promise<PushDevice[]>
@@ -133,6 +138,7 @@ export class MemoryRepo implements Repo {
   todos = new Map<string, Todo[]>()
   projects = new Map<string, Project[]>()
   suggestions = new Map<string, Suggestion[]>()
+  replies = new Map<string, Reply[]>()
   rules = new Map<string, CalendarRule[]>()
   google = new Map<string, GoogleConnection>()
   googleStates = new Map<string, GoogleState>()
@@ -197,6 +203,17 @@ export class MemoryRepo implements Repo {
     const s = this.googleStates.get(hash) ?? null
     this.googleStates.delete(hash)
     return structuredClone(s)
+  }
+
+  async listReplies(uid: string) {
+    return structuredClone(this.list(this.replies, uid))
+  }
+  async getReply(uid: string, id: string) {
+    const r = this.list(this.replies, uid).find((x) => x.id === id)
+    return r ? structuredClone(r) : null
+  }
+  async saveReply(uid: string, reply: Reply) {
+    this.upsert(this.list(this.replies, uid), reply)
   }
 
   async listDevices(uid: string) {

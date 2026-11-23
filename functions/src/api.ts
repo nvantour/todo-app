@@ -4,7 +4,8 @@ import { authenticate, type AuthDeps, type AuthResult } from './auth'
 import { buildBrief } from './brief'
 import { runCapture, type AiCapture } from './capture'
 import { HttpError, badRequest, notFound } from './errors'
-import { airtableResolveSchema, captureSchema, deviceSchema, newTodoSchema, patchTodoSchema, scheduleSchema, suggestionSchema } from './schemas'
+import { airtableResolveSchema, captureSchema, deviceSchema, newTodoSchema, patchTodoSchema, replyResultSchema, replySendSchema, repliesInSchema, scheduleSchema, suggestionSchema } from './schemas'
+import type { ReplyChannel, ReplyStatus } from '../../src/model/types'
 import { detectClient, parseFilter, type TodoService } from './service'
 import { generateToken, hashToken } from './tokens'
 import { resolveAirtable } from './airtable'
@@ -163,6 +164,7 @@ async function route(req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
   }
 
   if (path === '/google' || path.startsWith('/google/')) return google(method, path, auth, deps)
+  if (path === '/replies' || path.startsWith('/replies/')) return replies(req, method, path, auth, deps)
 
   if (path === '/scan/calendar' && method === 'POST') {
     const g = need(deps.google, 'Koppelen met Google is nog niet ingesteld.')
@@ -272,6 +274,45 @@ async function google(method: string, path: string, auth: AuthResult, deps: ApiD
   if (path === '/google' && method === 'DELETE') {
     await g.disconnect(auth.uid)
     return { status: 204 }
+  }
+  throw new HttpError(405, 'method_not_allowed', 'Deze methode kan hier niet.')
+}
+
+const list = (v: string | undefined) => (v ? v.split(',').map((x) => x.trim()).filter(Boolean) : undefined)
+
+/**
+ * Tab Antwoorden.
+ * - POST /replies: Claude zet kaarten klaar (altijd als "open").
+ * - GET /replies?status=approved&channel=teams,slack: het verzendscript haalt de wachtrij op.
+ * - POST /replies/:id/result: het verzendscript meldt voortgang (sending → sent/failed).
+ * - POST /replies/:id/send: Google Chat versturen — alleen vanuit de app (vinkje), nooit met een token van Claude.
+ */
+async function replies(req: ApiRequest, method: string, path: string, auth: AuthResult, deps: ApiDeps): Promise<ApiResponse> {
+  const { service } = deps
+  if (path === '/replies' && method === 'POST') {
+    const { replies: input } = parseBody(repliesInSchema, req.body)
+    return json(200, await service.saveReplies(auth.uid, input))
+  }
+  if (path === '/replies' && method === 'GET') {
+    const status = list(req.query.status) as ReplyStatus[] | undefined
+    const channel = list(req.query.channel) as ReplyChannel[] | undefined
+    return json(200, { replies: await service.listReplies(auth.uid, { status, channel }) })
+  }
+  const result = /^\/replies\/([^/]+)\/result$/.exec(path)
+  if (result && method === 'POST') {
+    const { status, error } = parseBody(replyResultSchema, req.body)
+    return json(200, { reply: await service.setReplyResult(auth.uid, decodeURIComponent(result[1]), status, error) })
+  }
+  const send = /^\/replies\/([^/]+)\/send$/.exec(path)
+  if (send && method === 'POST') {
+    if (auth.via !== 'idToken') throw new HttpError(403, 'forbidden', 'Versturen kan alleen vanuit de app zelf, met het vinkje.')
+    const g = need(deps.google, 'Koppelen met Google is nog niet ingesteld op de server.')
+    const { text } = parseBody(replySendSchema, req.body)
+    const reply = await service.getReply(auth.uid, decodeURIComponent(send[1]))
+    if (reply.channel !== 'gchat') throw badRequest('Alleen Google Chat verstuurt via de server.', 'wrong_channel')
+    if (!reply.target.space) throw badRequest('Onbekend in welke space dit gesprek staat.', 'no_target')
+    await g.sendChat(auth.uid, reply.target.space, text, reply.target.thread)
+    return json(200, { sent: true })
   }
   throw new HttpError(405, 'method_not_allowed', 'Deze methode kan hier niet.')
 }

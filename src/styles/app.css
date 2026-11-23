@@ -2100,3 +2100,168 @@ button.check.is-small::after {
     font-size: 13px;
   }
 }
+
+/* ---------- Antwoorden ---------- */
+
+.reply-filter {
+  margin-bottom: 14px;
+}
+
+.reply {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.reply.is-sent {
+  opacity: 0.6;
+}
+
+.reply.is-failed {
+  border-color: var(--danger);
+}
+
+.reply__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reply__channel {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.reply__who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.reply__who strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.reply__who > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-3);
+  font-size: 13px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.reply__reason {
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.reply__thread {
+  margin: 10px 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reply__more {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.reply__meta {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.reply__meta b {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.reply__text {
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.reply__msg.is-mine .reply__text {
+  color: var(--ink-2);
+}
+
+.reply__draft {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  min-height: 64px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--bg, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.reply__draft:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.reply__draft:disabled {
+  opacity: 0.8;
+}
+
+.reply__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.reply__status {
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.reply__status.is-ok {
+  color: var(--ok);
+}
+
+.reply__status.is-bad {
+  color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  .reply__status {
+    flex-basis: 100%;
+  }
+
+  .reply__foot .btn {
+    flex: 1;
+    justify-content: center;
+  }
+}

@@ -4,7 +4,7 @@ import type { Project, Todo } from '../../src/model/types'
 import { buildBrief } from './brief'
 import { errorResponse } from './api'
 import { HttpError } from './errors'
-import { isoDate, recurrenceSchema, sourceSchema, timeOfDay } from './schemas'
+import { incomingReplySchema, isoDate, recurrenceSchema, sourceSchema, timeOfDay } from './schemas'
 import { parseFilter, type TodoService } from './service'
 import type { ScheduleResult } from './schedule'
 
@@ -172,6 +172,39 @@ export function createMcpServer(service: TodoService, uid: string, schedule?: Sc
         const r = await service.suggest(uid, { ...rest, source: { type: sourceType, label: sourceLabel, url: sourceUrl, externalId: sourceExternalId } })
         if (r.created) return text({ created: true, suggestionId: r.suggestion!.id, message: 'Suggestion added to the inbox.' })
         return text({ created: false, duplicateOf: r.duplicateOf, message: `Skipped: this source item already exists as a ${r.duplicateOf === 'todo' ? 'todo' : 'suggestion'}.` })
+      }),
+  )
+
+  server.registerTool(
+    'save_reply_drafts',
+    {
+      title: 'Save reply drafts',
+      description:
+        "Put conversations that are waiting for the user's answer on the 'Antwoorden' tab, each with YOUR proposed reply. One item per conversation (mail thread, Google Chat thread, Slack thread or channel, Teams chat). The user edits the text and sends it himself with a checkmark in the app; you never send anything. Always pass a stable externalId per conversation (gmail thread id, Chat thread name, 'slack:<channel>:<thread_ts>', 'teams:<chat id or url>'): a known conversation is updated, a reply the user already edited is kept, approved replies are left alone, and a sent/dismissed one only reopens when there is a newer message from someone else. target per channel: mail {threadId}; gchat {space:'spaces/..', thread:'spaces/../threads/..'}; slack {url: web URL of the thread or channel (https://app.slack.com/client/<TEAM>/<CHANNEL>[/thread/<CHANNEL>-<TS>]), channel, ts}; teams {url: link that opens the exact chat or channel thread}. messages: the last messages oldest first (max ~10), with mine:true for the user's own. Write the draft in the language and tone of the conversation, in the user's voice; short.",
+      inputSchema: { replies: z.array(incomingReplySchema).min(1).max(100) },
+    },
+    ({ replies }) =>
+      guard(async () => {
+        const counts = await service.saveReplies(uid, replies)
+        return text({ ...counts, message: 'Saved on the Antwoorden tab. The user reviews and sends them in the app.' })
+      }),
+  )
+
+  server.registerTool(
+    'list_replies',
+    {
+      title: 'List replies',
+      description: "List cards on the 'Antwoorden' tab with their status (open, approved, sending, sent, failed, dismissed). Use it to see what is already there before saving new drafts. Read-only.",
+      inputSchema: { status: z.array(z.enum(['open', 'approved', 'sending', 'sent', 'failed', 'dismissed'])).optional() },
+      annotations: { readOnlyHint: true },
+    },
+    ({ status }) =>
+      guard(async () => {
+        const list = await service.listReplies(uid, { status })
+        return text({
+          count: list.length,
+          replies: list.map((r) => ({ id: r.id, channel: r.channel, externalId: r.externalId, title: r.title, who: r.who, status: r.status, draftEdited: r.draftEdited, error: r.error, lastMessageAt: r.messages.at(-1)?.at ?? null })),
+        })
       }),
   )
 

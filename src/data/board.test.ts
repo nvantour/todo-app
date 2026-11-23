@@ -4,7 +4,7 @@ import { DEFAULT_STATUSES, addStatus, boardColumns, canDeleteStatus, deleteStatu
 import { buildTodo } from './logic'
 
 const todo = (over: Partial<Todo> = {}): Todo => ({ ...buildTodo({ title: 't' }, 0), ...over })
-const data = (todos: Todo[], statuses: TaskStatus[] = []): AppData => ({ todos, projects: [], labels: [], suggestions: [], calendarRules: [], discussions: [], statuses })
+const data = (todos: Todo[], statuses: TaskStatus[] = []): AppData => ({ todos, projects: [], labels: [], suggestions: [], calendarRules: [], discussions: [], statuses, replies: [] })
 const [todoS, doing, done] = DEFAULT_STATUSES
 
 describe('bord: statussen', () => {

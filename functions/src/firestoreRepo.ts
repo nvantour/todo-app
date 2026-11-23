@@ -1,5 +1,5 @@
 import { getFirestore, Timestamp, type Firestore } from 'firebase-admin/firestore'
-import type { CalendarRule, Project, Suggestion, Todo } from '../../src/model/types'
+import type { CalendarRule, Project, Reply, Suggestion, Todo } from '../../src/model/types'
 import type { AuthCode, GoogleConnection, GoogleState, OAuthClient, PushDevice, Repo, ServerState, TokenRecord } from './repo'
 
 /** Firestore weigert `undefined`; dit haalt die eruit. */
@@ -89,6 +89,17 @@ export class FirestoreRepo implements Repo {
       const d = await tx.get(ref)
       tx.set(ref, clean({ ...(d.exists ? (d.data() as ServerState) : {}), ...patch }))
     })
+  }
+
+  async listReplies(uid: string) {
+    return (await this.col(uid, 'replies').get()).docs.map((d) => ({ ...(d.data() as Reply), id: d.id }))
+  }
+  async getReply(uid: string, id: string) {
+    const d = await this.col(uid, 'replies').doc(id).get()
+    return d.exists ? ({ ...(d.data() as Reply), id: d.id }) : null
+  }
+  async saveReply(uid: string, reply: Reply) {
+    await this.col(uid, 'replies').doc(reply.id).set(clean(reply))
   }
 
   async listSuggestions(uid: string) {

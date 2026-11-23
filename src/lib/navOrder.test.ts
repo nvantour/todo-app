@@ -7,7 +7,7 @@ describe('menuvolgorde', () => {
     expect(normalizeOrder('kapot')).toEqual([...NAV_IDS])
   })
   it('houdt de eigen volgorde, laat onbekende en dubbele weg en zet nieuwe achteraan', () => {
-    expect(normalizeOrder(['mail', 'oud', 'vandaag', 'mail'])).toEqual(['mail', 'vandaag', 'taken', 'bespreken', 'voorstellen', 'meetings', 'klanten'])
+    expect(normalizeOrder(['mail', 'oud', 'vandaag', 'mail'])).toEqual(['mail', 'vandaag', 'taken', 'bespreken', 'voorstellen', 'meetings', 'antwoorden', 'klanten'])
   })
   it('slepen naar beneden zet het item achter het doel', () => {
     const order: NavId[] = ['vandaag', 'taken', 'bespreken', 'meetings']

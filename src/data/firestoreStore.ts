@@ -6,6 +6,7 @@ import type { Store } from './store'
 import { buildDiscussion, buildProject, buildRule, buildTodo, normalizeDiscussion, normalizeLabel, normalizeProject, normalizeRule, normalizeSuggestion, normalizeTodo, nowISO, preparePatch, todoFromSuggestion, toggleChanges } from './logic'
 import { seedProjects } from './seed'
 import { normalizeStatus } from './board'
+import { normalizeReply } from './replies'
 import { getFirebaseApp } from './session'
 
 export interface FirestoreStore extends Store {
@@ -41,7 +42,7 @@ export function createFirestoreStore(uid: string): FirestoreStore {
   const col = (name: keyof AppData) => collection(firestore, 'users', uid, name)
   const ref = (name: keyof AppData, id: string) => doc(firestore, 'users', uid, name, id)
 
-  let data: AppData = { todos: [], projects: [], labels: [], suggestions: [], calendarRules: [], discussions: [], statuses: [] }
+  let data: AppData = { todos: [], projects: [], labels: [], suggestions: [], calendarRules: [], discussions: [], statuses: [], replies: [] }
   const listeners = new Set<() => void>()
   const loaded = new Set<string>()
   let seeded = false
@@ -82,7 +83,7 @@ export function createFirestoreStore(uid: string): FirestoreStore {
   }
 
   // aantal lijsten waar we op wachten voordat de app opent
-  const LISTS = 7
+  const LISTS = 8
   const unsubs = [
     listen('todos', normalizeTodo),
     listen('projects', normalizeProject),
@@ -91,6 +92,7 @@ export function createFirestoreStore(uid: string): FirestoreStore {
     listen('calendarRules', normalizeRule),
     listen('discussions', normalizeDiscussion),
     listen('statuses', normalizeStatus),
+    listen('replies', normalizeReply),
   ]
 
   const nextOrder = () => Math.max(0, ...data.todos.map((t) => t.order)) + 1
@@ -191,6 +193,11 @@ export function createFirestoreStore(uid: string): FirestoreStore {
       for (const s of list) batch.set(ref('statuses', s.id), s)
       for (const old of data.statuses) if (!list.some((s) => s.id === old.id)) batch.delete(ref('statuses', old.id))
       batch.commit().catch(fail('statussen'))
+    },
+    updateReply(id, patch) {
+      const { id: _ignored, ...rest } = patch
+      void _ignored
+      updateDoc(ref('replies', id), { ...rest, updatedAt: nowISO() }).catch(fail('antwoord'))
     },
   }
 }

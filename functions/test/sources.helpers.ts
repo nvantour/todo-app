@@ -20,6 +20,7 @@ export interface FakeData {
 export function fakeGoogle(data: FakeData = {}) {
   const inserted: NewCalEvent[] = []
   const deleted: string[] = []
+  const posted: { space: string; text: string; thread?: string }[] = []
   const api: GoogleApi = {
     listEvents: async () => data.events ?? [],
     insertEvent: async (e) => {
@@ -33,6 +34,10 @@ export function fakeGoogle(data: FakeData = {}) {
       return data.messages?.[space] ?? []
     },
     listMembers: async (space) => data.members?.[space] ?? [],
+    createMessage: async (space, text, thread) => {
+      posted.push({ space, text, thread })
+      return { name: `${space}/messages/m${posted.length}` }
+    },
   }
   const conn: GoogleConnection = {
     uid: UID,

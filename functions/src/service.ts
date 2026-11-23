@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import type { AppData, Bucket, NewTodo, Project, Suggestion, Todo } from '../../src/model/types'
+import type { AppData, Bucket, NewTodo, Project, Reply, ReplyChannel, ReplyStatus, Suggestion, Todo } from '../../src/model/types'
+import { mergeReply } from '../../src/data/replies'
 import { addDays, nextOccurrence } from '../../src/lib/dates'
 import { detectProject } from '../../src/lib/detect'
 import { effectiveBucket, todosInBucket } from '../../src/lib/selectors'
 import { todayAmsterdam } from './clock'
-import { badRequest, notFound } from './errors'
+import { HttpError, badRequest, notFound } from './errors'
 import type { Repo } from './repo'
-import type { NewTodoInput, PatchTodoInput, SuggestionInput } from './schemas'
+import type { IncomingReplyInput, NewTodoInput, PatchTodoInput, SuggestionInput } from './schemas'
 
 export interface ServiceOptions {
   now?: () => Date
@@ -92,7 +93,7 @@ export class TodoService {
       this.repo.listProjects(uid),
       this.repo.listSuggestions(uid),
     ])
-    return { todos, projects, suggestions, labels: [], calendarRules: [], discussions: [], statuses: [] }
+    return { todos, projects, suggestions, labels: [], calendarRules: [], discussions: [], statuses: [], replies: [] }
   }
 
   async listProjects(uid: string): Promise<Project[]> {
@@ -203,6 +204,50 @@ export class TodoService {
     }
     await this.repo.saveSuggestion(uid, suggestion)
     return { created: true, suggestion }
+  }
+
+  // --- Antwoorden ---
+
+  /** Een ronde van Claude: kaarten aanmaken of bijwerken (zie mergeReply). Zet nooit iets op goedgekeurd. */
+  async saveReplies(uid: string, inputs: IncomingReplyInput[]): Promise<Record<'created' | 'updated' | 'reopened' | 'skipped', number>> {
+    const [existing, projects] = await Promise.all([this.repo.listReplies(uid), this.repo.listProjects(uid)])
+    const counts = { created: 0, updated: 0, reopened: 0, skipped: 0 }
+    const stamp = this.stamp()
+    for (const input of inputs) {
+      const old = existing.find((r) => r.channel === input.channel && r.externalId === input.externalId)
+      const projectId = input.projectId ?? old?.projectId ?? detectClient([input.title, input.who, ...input.messages.map((m) => m.author)], projects)
+      const { reply, change } = mergeReply(old, { ...input, projectId }, stamp, () => this.newId())
+      counts[change]++
+      if (change !== 'skipped') await this.repo.saveReply(uid, reply)
+    }
+    return counts
+  }
+
+  async listReplies(uid: string, filter: { status?: ReplyStatus[]; channel?: ReplyChannel[] } = {}): Promise<Reply[]> {
+    const all = await this.repo.listReplies(uid)
+    return all
+      .filter((r) => (!filter.status || filter.status.includes(r.status)) && (!filter.channel || filter.channel.includes(r.channel)))
+      .sort((a, b) => (a.approvedAt ?? a.createdAt).localeCompare(b.approvedAt ?? b.createdAt))
+  }
+
+  async getReply(uid: string, id: string): Promise<Reply> {
+    const r = await this.repo.getReply(uid, id)
+    if (!r) throw notFound('Dit antwoord bestaat niet')
+    return r
+  }
+
+  /**
+   * Voortgang van het verzendscript. Alleen deze stappen mogen: goedgekeurd → bezig → verstuurd/mislukt
+   * (of meteen mislukt). Zo kan niets buiten de app om een antwoord laten versturen.
+   */
+  async setReplyResult(uid: string, id: string, status: 'sending' | 'sent' | 'failed', error?: string): Promise<Reply> {
+    const r = await this.getReply(uid, id)
+    const allowed: Record<string, ReplyStatus[]> = { sending: ['approved'], sent: ['sending'], failed: ['approved', 'sending'] }
+    if (!allowed[status].includes(r.status)) throw new HttpError(409, 'bad_transition', `Kan niet van "${r.status}" naar "${status}".`)
+    const stamp = this.stamp()
+    const next: Reply = { ...r, status, updatedAt: stamp, error: status === 'failed' ? (error ?? 'Versturen mislukt.') : null, sentAt: status === 'sent' ? stamp : r.sentAt }
+    await this.repo.saveReply(uid, next)
+    return next
   }
 
   /** Voor de brief en de uitvoer: de effectieve plek (nu/later) van een taak. */

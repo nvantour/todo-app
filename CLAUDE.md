@@ -70,6 +70,12 @@ Het volledige contract voor koppelingen staat in `docs/koppelingen.md`; serverin
 - "Maak taak" en "Bespreek" in een thread praten via `MailHooks` met de store. Gepland verzenden staat uit (daar is een taak op de server voor nodig; die heeft de todo-app nog niet).
 - Google-koppeling ingesteld op 2026-11-22: OAuth-client "Todo server (agenda en chat)", secrets `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (versie 2).
 
+## Antwoorden (sinds 2026-11-23)
+
+- Tab `/antwoorden` (`src/views/RepliesView.tsx`): kaarten per gesprek (mail, Google Chat, Slack, Teams) met conceptantwoord; Nino verstuurt met het vinkje. Contract en statussen: `docs/antwoorden.md`.
+- Kaarten komen van Claude via skill `/chats-ophalen` (werkmap) → MCP `save_reply_drafts` / `POST /api/replies`. Claude verstuurt nooit; `/api/replies/:id/send` accepteert alleen het ID-token van de app.
+- Versturen: mail door de app (Gmail), Google Chat door de server (scope `chat.messages.create`, vraagt één keer opnieuw koppelen), Teams/Slack door `reply-sender/` op de Mac mini (Playwright, eigen ingelogd profiel).
+
 ## Stand (2026-11-18)
 
 Werkt: app, login, sync, server, Claude-koppeling op de laptop. Nog in te stellen door Nino: Google-koppeling (agenda, Chat), meldingen (VAPID-sleutel), Claude-app op de telefoon, Siri-opdracht. Zie `docs/server.md`.

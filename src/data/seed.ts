@@ -1,4 +1,4 @@
-import type { AppData, Discussion, Project, Todo } from '../model/types'
+import type { AppData, Discussion, Project, Reply, Todo } from '../model/types'
 import { addDays, todayISO } from '../lib/dates'
 
 // Voorbeelddata voor ontwerp en ontwikkeling; alleen gebruikt zonder Firebase-config.
@@ -149,6 +149,69 @@ export function seedData(): AppData {
     ],
     discussions: seedDiscussions(stamp),
     statuses: [],
+    replies: seedReplies(stamp),
     calendarRules: [{ id: 'qbr', match: 'QBR', titleTemplate: '{titel} voorbereiden', workdaysBefore: 3, enabled: true }],
   }
+}
+
+/** Voorbeeldgesprekken voor de tab Antwoorden (alleen testmodus). */
+function seedReplies(stamp: string): Reply[] {
+  const base = { projectId: null, draftEdited: false, status: 'open' as const, error: null, approvedAt: null, sentAt: null, createdAt: stamp, updatedAt: stamp }
+  return [
+    {
+      ...base,
+      id: 'r-mail',
+      channel: 'mail',
+      title: 'Planning Q1-tests',
+      who: 'Thalia (Transavia)',
+      url: '/mail#mail-voorbeeld',
+      target: { threadId: 'voorbeeld' },
+      externalId: 'gmail:voorbeeld',
+      messages: [{ author: 'Thalia', text: 'Hoi Nino, kun je voor vrijdag laten weten welke tests we in Q1 als eerste oppakken?', at: '2026-11-23T08:12:00Z' }],
+      draft: 'Hoi Thalia,\n\nDat lukt. Ik stuur je donderdag de volgorde met een korte onderbouwing per test.\n\nGroet,\nNino',
+      reason: 'Thalia vraagt voor vrijdag om de volgorde van de Q1-tests.',
+    },
+    {
+      ...base,
+      id: 'r-gchat',
+      channel: 'gchat',
+      title: 'Keesing-team',
+      who: 'Mark',
+      url: 'https://mail.google.com/mail/u/0/#chat/space/AAAA',
+      target: { space: 'spaces/AAAA', thread: 'spaces/AAAA/threads/BBBB' },
+      externalId: 'spaces/AAAA/threads/BBBB',
+      messages: [
+        { author: 'Mark', text: 'Staat ID66 al live?', at: '2026-11-23T09:01:00Z' },
+        { author: 'Mark', text: 'Klant vraagt ernaar', at: '2026-11-23T09:02:00Z' },
+      ],
+      draft: 'Nog niet, ik zet hem vandaag na de QA live. Ik laat het je weten.',
+      reason: 'Mark vraagt of ID66 live staat.',
+    },
+    {
+      ...base,
+      id: 'r-slack',
+      channel: 'slack',
+      title: '#od_wrg_wow',
+      who: 'Lisa (Wehkamp)',
+      url: 'https://app.slack.com/client/T000/C000',
+      target: { url: 'https://app.slack.com/client/T000/C000/thread/C000-1700000000.000100', channel: 'C000', ts: '1700000000.000100' },
+      externalId: 'slack:C000:1700000000.000100',
+      messages: [{ author: 'Lisa', text: 'Kunnen we de Black Friday-test een week langer laten lopen?', at: '2026-11-23T10:30:00Z' }],
+      draft: 'Ja, dat kan. Ik verleng hem tot 7 december; dan halen we ook het weekend na Black Friday mee.',
+      reason: 'Lisa vraagt of de Black Friday-test langer mag lopen.',
+    },
+    {
+      ...base,
+      id: 'r-teams',
+      channel: 'teams',
+      title: 'CRO Prominent x Velder',
+      who: 'Rick',
+      url: 'https://teams.microsoft.com/l/chat/voorbeeld',
+      target: { url: 'https://teams.microsoft.com/l/chat/voorbeeld' },
+      externalId: 'teams:voorbeeld',
+      messages: [{ author: 'Rick', text: 'Wanneer kunnen we de eind- en startdatums doorlopen?', at: '2026-11-23T11:00:00Z' }],
+      draft: 'Donderdag om 10:00 kan ik. Past dat?',
+      reason: 'Rick wil een moment om de testdatums door te lopen.',
+    },
+  ]
 }

@@ -14,7 +14,7 @@ const group = (id: string, order: number, items: DiscussionItem[]): Discussion =
   createdAt: '2026-11-22T09:00:00.000Z',
   updatedAt: '2026-11-22T09:00:00.000Z',
 })
-const data = (discussions: Discussion[]): AppData => ({ todos: [], projects: [], labels: [], suggestions: [], calendarRules: [], discussions, statuses: [] })
+const data = (discussions: Discussion[]): AppData => ({ todos: [], projects: [], labels: [], suggestions: [], calendarRules: [], discussions, statuses: [], replies: [] })
 
 describe('bespreekgroepen voor Vandaag', () => {
   it('toont alleen groepen met open punten, in eigen volgorde', () => {

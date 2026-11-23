@@ -19,6 +19,7 @@ interface Status {
   calendar?: boolean
   chat?: boolean
   mail?: boolean
+  chatSend?: boolean
   lastCalendarScan?: Scan
   lastChatScan?: Scan
 }
@@ -176,6 +177,16 @@ export function GoogleConnection() {
               <div className="hint-text">{status.mail ? 'Je mail staat in de Mail-tab.' : 'Koppel opnieuw en sta Gmail toe om je mail in de app te openen.'}</div>
             </div>
           </div>
+          <div className="conn__row">
+            <div>
+              <div className="conn__name">
+                <MessageSquare size={14} /> Chat versturen {status.chatSend ? <span className="pill is-ok"><Check size={12} /> Toegestaan</span> : <span className="pill is-bad">Geen toestemming</span>}
+              </div>
+              <div className="hint-text">
+                {status.chatSend ? 'Antwoorden in Google Chat gaan direct weg met het vinkje op de tab Antwoorden.' : 'Koppel opnieuw en sta "berichten maken" toe om Chat-antwoorden met het vinkje te versturen.'}
+              </div>
+            </div>
+          </div>
 
           {!status.needsReauth && (
             <div className="conn__actions">
@@ -185,7 +196,7 @@ export function GoogleConnection() {
               <button className="btn" onClick={() => void scan('chat')} disabled={busy !== null || !status.chat}>
                 {busy === 'chat' ? 'Bezig…' : 'Chat nu scannen'}
               </button>
-              {(!status.calendar || !status.chat || !status.mail) && (
+              {(!status.calendar || !status.chat || !status.mail || !status.chatSend) && (
                 <button className="btn" onClick={() => void connect()} disabled={busy !== null}>
                   Opnieuw koppelen
                 </button>

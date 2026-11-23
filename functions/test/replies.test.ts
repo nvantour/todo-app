@@ -1,0 +1,127 @@
+import { describe, expect, it } from 'vitest'
+import type { Reply } from '../../src/model/types'
+import type { GoogleService } from '../src/google'
+import { UID, call, personalToken, setup } from './helpers'
+
+const incoming = (over: Record<string, unknown> = {}) => ({
+  channel: 'teams',
+  externalId: 'teams:chat-1',
+  title: 'CRO Wehkamp',
+  who: 'Rick',
+  target: { url: 'https://teams.microsoft.com/l/chat/1' },
+  messages: [{ author: 'Rick', text: 'Wanneer kan het?', at: '2026-11-18T09:00:00Z' }],
+  draft: 'Donderdag kan ik.',
+  reason: 'Rick vraagt om een moment.',
+  ...over,
+})
+
+async function withToken() {
+  const ctx = setup()
+  const token = await personalToken(ctx.repo)
+  return { ...ctx, auth: { authorization: `Bearer ${token}` } }
+}
+
+describe('antwoorden: ophalen door Claude', () => {
+  it('maakt kaarten aan als open, herkent de klant en voorkomt dubbele', async () => {
+    const { deps, repo, auth } = await withToken()
+    const first = await call(deps, 'POST', '/replies', { replies: [incoming()] }, auth)
+    expect(first.body).toEqual({ created: 1, updated: 0, reopened: 0, skipped: 0 })
+    const [r] = await repo.listReplies(UID)
+    expect(r).toMatchObject({ status: 'open', projectId: 'wehkamp', draft: 'Donderdag kan ik.', draftEdited: false })
+    const again = await call(deps, 'POST', '/replies', { replies: [incoming({ draft: 'Vrijdag kan ik.' })] }, auth)
+    expect(again.body).toMatchObject({ updated: 1 })
+    expect((await repo.listReplies(UID))[0].draft).toBe('Vrijdag kan ik.')
+  })
+
+  it('overschrijft een door Nino aangepast antwoord niet', async () => {
+    const { deps, repo, auth } = await withToken()
+    await call(deps, 'POST', '/replies', { replies: [incoming()] }, auth)
+    const [r] = await repo.listReplies(UID)
+    await repo.saveReply(UID, { ...r, draft: 'Mijn eigen tekst', draftEdited: true })
+    await call(deps, 'POST', '/replies', { replies: [incoming({ draft: 'Nieuw voorstel' })] }, auth)
+    expect((await repo.listReplies(UID))[0].draft).toBe('Mijn eigen tekst')
+  })
+
+  it('een goedgekeurd antwoord blijft onaangeroerd; verstuurd gaat alleen open bij een nieuw bericht', async () => {
+    const { deps, repo, auth } = await withToken()
+    await call(deps, 'POST', '/replies', { replies: [incoming()] }, auth)
+    const [r] = await repo.listReplies(UID)
+    await repo.saveReply(UID, { ...r, status: 'approved' })
+    expect((await call(deps, 'POST', '/replies', { replies: [incoming({ draft: 'x' })] }, auth)).body).toMatchObject({ skipped: 1 })
+    await repo.saveReply(UID, { ...r, status: 'sent', sentAt: '2026-11-18T09:30:00Z' })
+    expect((await call(deps, 'POST', '/replies', { replies: [incoming()] }, auth)).body).toMatchObject({ skipped: 1 })
+    const fresh = incoming({ messages: [{ author: 'Rick', text: 'En vrijdag?', at: '2026-11-18T10:00:00Z' }], draft: 'Vrijdag ook.' })
+    expect((await call(deps, 'POST', '/replies', { replies: [fresh] }, auth)).body).toMatchObject({ reopened: 1 })
+    expect((await repo.listReplies(UID))[0]).toMatchObject({ status: 'open', draft: 'Vrijdag ook.' })
+  })
+
+  it('kan nooit zelf op goedgekeurd zetten: status in de invoer wordt genegeerd', async () => {
+    const { deps, repo, auth } = await withToken()
+    await call(deps, 'POST', '/replies', { replies: [incoming({ status: 'approved' })] }, auth)
+    expect((await repo.listReplies(UID))[0].status).toBe('open')
+  })
+})
+
+describe('antwoorden: verzendscript', () => {
+  async function approved() {
+    const ctx = await withToken()
+    await call(ctx.deps, 'POST', '/replies', { replies: [incoming(), incoming({ channel: 'slack', externalId: 's1', target: { url: 'https://app.slack.com/client/T/C' } })] }, ctx.auth)
+    const list = await ctx.repo.listReplies(UID)
+    await ctx.repo.saveReply(UID, { ...list[0], status: 'approved', approvedAt: '2026-11-18T09:40:00Z' })
+    return { ...ctx, reply: list[0] as Reply }
+  }
+
+  it('haalt alleen goedgekeurde Teams/Slack-antwoorden op', async () => {
+    const { deps, auth, reply } = await approved()
+    const res = await call(deps, 'GET', '/replies', undefined, auth, { status: 'approved', channel: 'teams,slack' })
+    expect((res.body as { replies: Reply[] }).replies.map((r) => r.id)).toEqual([reply.id])
+  })
+
+  it('volgt de stappen goedgekeurd → bezig → verstuurd; andere stappen worden geweigerd', async () => {
+    const { deps, auth, reply, repo } = await approved()
+    const path = `/replies/${reply.id}/result`
+    expect((await call(deps, 'POST', path, { status: 'sent' }, auth)).status).toBe(409)
+    expect((await call(deps, 'POST', path, { status: 'sending' }, auth)).status).toBe(200)
+    expect((await call(deps, 'POST', path, { status: 'sending' }, auth)).status).toBe(409)
+    expect((await call(deps, 'POST', path, { status: 'sent' }, auth)).status).toBe(200)
+    expect((await repo.getReply(UID, reply.id))!).toMatchObject({ status: 'sent', error: null })
+    expect((await repo.getReply(UID, reply.id))!.sentAt).toBeTruthy()
+  })
+
+  it('mislukt met reden', async () => {
+    const { deps, auth, reply, repo } = await approved()
+    await call(deps, 'POST', `/replies/${reply.id}/result`, { status: 'failed', error: 'Niet ingelogd bij Teams' }, auth)
+    expect((await repo.getReply(UID, reply.id))!).toMatchObject({ status: 'failed', error: 'Niet ingelogd bij Teams' })
+  })
+
+  it('een open antwoord kan het script niet versturen', async () => {
+    const { deps, auth, repo } = await approved()
+    const open = (await repo.listReplies(UID)).find((r) => r.status === 'open')!
+    expect((await call(deps, 'POST', `/replies/${open.id}/result`, { status: 'sending' }, auth)).status).toBe(409)
+  })
+})
+
+describe('antwoorden: Google Chat versturen', () => {
+  async function gchat() {
+    const ctx = await withToken()
+    const sent: unknown[] = []
+    ctx.deps.google = { sendChat: async (...args: unknown[]) => void sent.push(args) } as unknown as GoogleService
+    await call(ctx.deps, 'POST', '/replies', { replies: [incoming({ channel: 'gchat', externalId: 'spaces/A/threads/B', target: { space: 'spaces/A', thread: 'spaces/A/threads/B' } })] }, ctx.auth)
+    const [reply] = await ctx.repo.listReplies(UID)
+    return { ...ctx, reply, sent }
+  }
+
+  it('alleen vanuit de app (ID-token), nooit met het token van Claude', async () => {
+    const { deps, auth, reply, sent } = await gchat()
+    const res = await call(deps, 'POST', `/replies/${reply.id}/send`, { text: 'Hoi' }, auth)
+    expect(res.status).toBe(403)
+    expect(sent).toEqual([])
+  })
+
+  it('verstuurt in de juiste thread met de tekst uit de app', async () => {
+    const { deps, reply, sent } = await gchat()
+    const res = await call(deps, 'POST', `/replies/${reply.id}/send`, { text: 'Donderdag 10:00' })
+    expect(res.status).toBe(200)
+    expect(sent).toEqual([[UID, 'spaces/A', 'Donderdag 10:00', 'spaces/A/threads/B']])
+  })
+})

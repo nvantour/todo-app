@@ -8,6 +8,7 @@ import { SearchDialog } from './components/SearchDialog'
 import { TodayView } from './views/TodayView'
 import { MeetingsView } from './views/ComingSoonView'
 import { MailView } from './views/MailView'
+import { RepliesView } from './views/RepliesView'
 import { TasksView } from './views/TasksView'
 import { ClientsView } from './views/ClientsView'
 import { DiscussionsView } from './views/DiscussionsView'
@@ -48,6 +49,7 @@ function AppRoutes({ status }: { status: ReturnType<typeof useConnection>['statu
         <Route path="/bespreken" element={<DiscussionsView />} />
         <Route path="/meetings" element={<MeetingsView />} />
         <Route path="/mail" element={<MailView />} />
+        <Route path="/antwoorden" element={<RepliesView />} />
         <Route path="/voorstellen" element={<SuggestionsView />} />
         <Route path="/instellingen" element={<SettingsView />} />
         <Route path="*" element={<Navigate to="/vandaag" replace />} />

@@ -136,6 +136,68 @@ export interface Discussion {
   updatedAt: string
 }
 
+/** Kanaal van een gesprek op de tab Antwoorden. */
+export type ReplyChannel = 'mail' | 'gchat' | 'slack' | 'teams'
+
+/**
+ * open = wacht op Nino · approved = vinkje gezet (Teams/Slack: het verzendscript pakt hem op) ·
+ * sending = wordt verstuurd · sent = verstuurd · failed = mislukt (zie error) · dismissed = genegeerd
+ */
+export type ReplyStatus = 'open' | 'approved' | 'sending' | 'sent' | 'failed' | 'dismissed'
+
+export interface ReplyMessage {
+  author: string
+  text: string
+  /** ISO-tijd, als bekend. */
+  at: string | null
+  /** Van Nino zelf. */
+  mine?: boolean
+}
+
+/** Waar het antwoord heen gaat. Per kanaal gebruik je andere velden; zie docs/antwoorden.md. */
+export interface ReplyTarget {
+  /** mail: Gmail-thread-id. */
+  threadId?: string
+  /** gchat: `spaces/<id>`; thread: `spaces/<id>/threads/<id>` (leeg = nieuw bericht in de space). */
+  space?: string
+  thread?: string
+  /** teams en slack: de webpagina met het invoerveld van het juiste gesprek of de juiste thread. */
+  url?: string
+  /** slack: kanaal-id en (thread-)ts, ter info. */
+  channel?: string
+  ts?: string
+}
+
+/** Een gesprek dat op Nino's antwoord wacht, met een voorstel van Claude. */
+export interface Reply {
+  id: string
+  channel: ReplyChannel
+  /** Onderwerp, chatnaam of kanaal. */
+  title: string
+  /** Met wie: afzender of deelnemers. */
+  who: string
+  projectId: string | null
+  /** Link naar het gesprek zelf. */
+  url: string | null
+  target: ReplyTarget
+  /** Uniek per gesprek in het bronsysteem; voorkomt dubbele kaarten. */
+  externalId: string
+  /** Laatste berichten, oudste eerst. */
+  messages: ReplyMessage[]
+  /** Het antwoord dat verstuurd wordt. */
+  draft: string
+  /** Nino heeft het antwoord aangepast: een nieuwe ronde overschrijft het dan niet. */
+  draftEdited: boolean
+  /** Wat er gevraagd wordt, in één zin. */
+  reason: string
+  status: ReplyStatus
+  error: string | null
+  approvedAt: string | null
+  sentAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface AppData {
   todos: Todo[]
   projects: Project[]
@@ -145,6 +207,8 @@ export interface AppData {
   discussions: Discussion[]
   /** Leeg = de standaardstatussen (zie DEFAULT_STATUSES in data/logic.ts). */
   statuses: TaskStatus[]
+  /** Tab Antwoorden. */
+  replies: Reply[]
 }
 
 export type NewTodo = Pick<Todo, 'title'> & Partial<Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>>

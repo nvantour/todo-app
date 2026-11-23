@@ -8,6 +8,7 @@ import { VoiceButton } from '../voice/VoiceButton'
 import { openSuggestions, openTodos } from '../lib/selectors'
 import { moveTo, setNavOrder, useNavOrder, type NavId } from '../lib/navOrder'
 import { NAV_ITEMS } from './navItems'
+import { waitingReplies } from '../data/replies'
 
 const active = ({ isActive }: { isActive: boolean }) => `nav-item${isActive ? ' is-active' : ''}`
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
@@ -20,11 +21,13 @@ export function Sidebar() {
   const [over, setOver] = useState<NavId | null>(null)
   const suggestions = openSuggestions(data).length
   const todos = openTodos(data).length
+  const replies = waitingReplies(data)
   const name = user?.name?.split(' ')[0] ?? 'Nino'
 
   function badge(id: NavId) {
     if (id === 'taken') return <span className="nav-item__count">{todos || ''}</span>
     if (id === 'voorstellen' && suggestions > 0) return <span className="nav-item__count has-new">{suggestions}</span>
+    if (id === 'antwoorden' && replies > 0) return <span className="nav-item__count has-new">{replies}</span>
     return null
   }
 
