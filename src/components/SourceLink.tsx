@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Source } from '../model/types'
-import { isInternal } from '../lib/sources'
+import { isInternal, sourceHref } from '../lib/sources'
 
 interface Props {
   source: Source
@@ -12,11 +12,11 @@ interface Props {
 
 /**
  * De bron van een taak als klikbare link. Binnen de app: in hetzelfde venster (de mail opent de thread);
- * naar buiten: in een nieuw tabblad. Zonder url gewoon tekst.
+ * naar buiten: in een nieuw tabblad. Zonder (af te leiden) link gewoon tekst. Een link krijgt de klasse `is-link`.
  */
 export function SourceLink({ source, className, title, children }: Props) {
   const navigate = useNavigate()
-  const url = source.url
+  const url = sourceHref(source)
   if (!url) {
     return (
       <span className={className} title={title}>
@@ -27,7 +27,7 @@ export function SourceLink({ source, className, title, children }: Props) {
   const internal = isInternal(url)
   return (
     <a
-      className={className}
+      className={className ? `${className} is-link` : undefined}
       title={title}
       href={url}
       target={internal ? undefined : '_blank'}

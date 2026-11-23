@@ -31,6 +31,11 @@ export function isoWeekday(iso: string): number {
   return parseISODate(iso).getDay() || 7
 }
 
+/** Maandag van de week waarin `iso` valt. */
+export function weekStart(iso: string): string {
+  return addDays(iso, 1 - isoWeekday(iso))
+}
+
 export function formatDue(iso: string, today: string = todayISO()): string {
   const diff = diffDays(iso, today)
   if (diff === 0) return 'Vandaag'

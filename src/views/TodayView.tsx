@@ -2,10 +2,9 @@ import { Link } from 'react-router-dom'
 import { MessagesSquare, Sparkles } from 'lucide-react'
 import { useAppData } from '../data/store'
 import { useSession } from '../data/session'
-import { AddLine } from '../components/AddLine'
-import { ChecklistItem } from '../components/ChecklistItem'
+import { DaySections } from '../components/DaySections'
 import { formatLongDate, todayISO } from '../lib/dates'
-import { discussionsWithOpenItems, openSuggestions, todosInBucket } from '../lib/selectors'
+import { discussionsWithOpenItems, openSuggestions } from '../lib/selectors'
 
 function greeting(hour: number): string {
   if (hour < 12) return 'Goedemorgen'
@@ -19,10 +18,8 @@ export function TodayView() {
   const { user } = useSession()
   const today = todayISO()
   const name = user?.name?.split(' ')[0] ?? 'Nino'
-  const now = todosInBucket(data, 'now', today)
   const suggestions = openSuggestions(data)
   const discussions = discussionsWithOpenItems(data)
-  const project = (id: string | null) => data.projects.find((p) => p.id === id)
 
   return (
     <>
@@ -42,15 +39,7 @@ export function TodayView() {
         </Link>
       )}
 
-      <section className="section">
-        <h2 className="section__head">
-          Vandaag <span>{now.length}</span>
-        </h2>
-        {now.map((t) => (
-          <ChecklistItem key={t.id} todo={t} project={project(t.projectId)} />
-        ))}
-        <AddLine id="add-today" defaults={{ bucket: 'now' }} placeholder="Iets voor vandaag" />
-      </section>
+      <DaySections groups={['today', 'week']} />
 
       {discussions.length > 0 && (
         <section className="section">

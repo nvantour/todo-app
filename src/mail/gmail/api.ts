@@ -123,8 +123,20 @@ async function summarize(email: string, t: { id: string; snippet: string }): Pro
   };
 }
 
+/** Haalt de thread op. Is `id` een bericht-id (zo geeft Claude een mail soms door), dan via dat bericht de thread. */
+async function fetchThread(email: string, id: string): Promise<{ id: string; messages: RawMessage[] }> {
+  try {
+    return await gmail<{ id: string; messages: RawMessage[] }>(email, `/threads/${id}?format=full`);
+  } catch (e) {
+    let threadId: string | undefined;
+    try { threadId = (await gmail<{ threadId?: string }>(email, `/messages/${id}?format=minimal`)).threadId; } catch { /* geen bericht-id */ }
+    if (!threadId || threadId === id) throw e;
+    return gmail<{ id: string; messages: RawMessage[] }>(email, `/threads/${threadId}?format=full`);
+  }
+}
+
 export async function getThread(email: string, id: string): Promise<Thread> {
-  const th = await gmail<{ id: string; messages: RawMessage[] }>(email, `/threads/${id}?format=full`);
+  const th = await fetchThread(email, id);
   const all = th.messages.flatMap((m) => m.labelIds ?? []);
   // Gmail-concept in deze thread: het draft-id staat niet in het bericht, dus via de conceptenlijst.
   const draftMsg = th.messages.filter((m) => m.labelIds?.includes('DRAFT')).at(-1);

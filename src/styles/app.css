@@ -1983,3 +1983,68 @@ button.check.is-small::after {
     flex-direction: column;
   }
 }
+
+/* ---------- Slepen tussen Vandaag, Deze week en Om niet te vergeten ---------- */
+
+.item.is-draggable {
+  position: relative;
+}
+
+.item__grip {
+  position: absolute;
+  left: -24px;
+  top: 7px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 22px;
+  border-radius: 5px;
+  color: var(--ink-3);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+}
+
+.item:hover .item__grip {
+  opacity: 1;
+}
+
+.item__grip:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.item.is-dragging {
+  opacity: 0.4;
+}
+
+@media (pointer: coarse) {
+  .item__grip {
+    display: none;
+  }
+}
+
+.drop-zone {
+  margin-inline: -12px;
+  padding: 4px 12px 6px;
+  border-radius: 12px;
+  transition: background 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+
+.day-sections.is-dragging .drop-zone {
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.drop-zone.is-over {
+  background: var(--accent-soft, var(--hover));
+  box-shadow: 0 0 0 2px var(--accent) !important;
+}
+
+.drop-zone__hint {
+  margin: 4px 0;
+  padding: 10px 12px;
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  color: var(--ink-3);
+  font-size: 13px;
+}

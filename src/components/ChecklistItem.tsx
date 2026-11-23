@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
-import { ArrowDownToLine, ArrowUpToLine, CalendarPlus, Check, MoreHorizontal, Repeat, StickyNote } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, CalendarPlus, Check, GripVertical, MoreHorizontal, Repeat, StickyNote } from 'lucide-react'
 import type { Project, Todo } from '../model/types'
 import { store } from '../data/store'
 import { describeRecurrence, formatDue, todayISO } from '../lib/dates'
 import { effectiveBucket } from '../lib/selectors'
-import { SOURCE_ICON } from '../lib/sources'
+import { SOURCE_ICON, sourceHref } from '../lib/sources'
 import { SourceLink } from './SourceLink'
 import { openDetail } from '../ui/overlays'
+import { TODO_DRAG_TYPE } from './dragTodo'
 
 interface Props {
   todo: Todo
@@ -15,10 +16,15 @@ interface Props {
   hideProject?: boolean
   /** Toon een stip als de taak "om niet te vergeten" is (voor het raster). */
   markLater?: boolean
+  /** Sleepbaar aan een greepje (Vandaag / Deze week / Om niet te vergeten). */
+  draggable?: boolean
 }
 
-export function ChecklistItem({ todo, project, hideProject, markLater }: Props) {
+export function ChecklistItem({ todo, project, hideProject, markLater, draggable }: Props) {
   const [completing, setCompleting] = useState(false)
+  // Alleen slepen vanaf het greepje, zodat tekst selecteren en bewerken gewoon blijft werken.
+  const [dragged, setDragged] = useState(false)
+  const row = useRef<HTMLDivElement>(null)
   const dateInput = useRef<HTMLInputElement>(null)
   const today = todayISO()
   const SourceIcon = SOURCE_ICON[todo.source.type]
@@ -43,12 +49,31 @@ export function ChecklistItem({ todo, project, hideProject, markLater }: Props) 
   return (
     <div
       id={`todo-${todo.id}`}
-      className={`item${completing ? ' is-completing' : ''}${markLater && bucket === 'later' ? ' is-later' : ''}`}
+      className={`item${completing ? ' is-completing' : ''}${markLater && bucket === 'later' ? ' is-later' : ''}${draggable ? ' is-draggable' : ''}${dragged ? ' is-dragging' : ''}`}
+      ref={row}
       // klik naast de tekst en de knoppen opent het detail
       onClick={(e) => {
         if (!(e.target as HTMLElement).closest('button, input, .item__title, a')) openDetail(todo.id)
       }}
     >
+      {draggable && (
+        <span
+          className="item__grip"
+          aria-hidden
+          title="Sleep naar een andere groep"
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move'
+            e.dataTransfer.setData(TODO_DRAG_TYPE, todo.id)
+            e.dataTransfer.setData('text/plain', todo.title)
+            if (row.current) e.dataTransfer.setDragImage(row.current, 24, 16)
+            setDragged(true)
+          }}
+          onDragEnd={() => setDragged(false)}
+        >
+          <GripVertical size={14} />
+        </span>
+      )}
       <button className={`check${completing ? ' is-done' : ''}`} aria-label={`Afvinken: ${todo.title}`} onClick={complete}>
         <Check size={12} strokeWidth={3.5} />
       </button>
@@ -84,7 +109,7 @@ export function ChecklistItem({ todo, project, hideProject, markLater }: Props) 
             </span>
           )}
           {SourceIcon && (
-            <SourceLink source={todo.source} className={`tag is-source${todo.source.url ? ' is-link' : ''}`} title={todo.source.url ? `Open: ${todo.source.label ?? ''}` : todo.source.label}>
+            <SourceLink source={todo.source} className="tag is-source" title={sourceHref(todo.source) ? `Open: ${todo.source.label ?? ''}` : todo.source.label}>
               <SourceIcon size={12} />
               <span>{todo.source.label}</span>
             </SourceLink>

@@ -1,6 +1,6 @@
 import type { AppData, Bucket, Discussion, Todo } from '../model/types'
 import { openItemCount } from '../data/logic'
-import { addDays, todayISO } from './dates'
+import { addDays, todayISO, weekStart } from './dates'
 
 /** Eerst op datum (zonder datum achteraan), daarna op eigen volgorde. */
 const byDueThenOrder = (a: Todo, b: Todo) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || a.order - b.order
@@ -15,6 +15,40 @@ export function openTodos(data: AppData): Todo[] {
  */
 export function effectiveBucket(todo: Todo, today = todayISO()): Bucket {
   return todo.bucket === 'now' || (todo.due !== null && todo.due <= today) ? 'now' : 'later'
+}
+
+/** De drie groepen op Vandaag en Taken. */
+export type DayGroup = 'today' | 'week' | 'later'
+
+/**
+ * In welke groep een open taak staat. Een datum van vandaag of eerder wint altijd (dan is het Vandaag);
+ * "Deze week" geldt alleen in de week waarin je de taak daar neerzette.
+ */
+export function dayGroup(todo: Todo, today = todayISO()): DayGroup {
+  if (effectiveBucket(todo, today) === 'later') return 'later'
+  if (todo.due !== null && todo.due <= today) return 'today'
+  return todo.weekOf === weekStart(today) ? 'week' : 'today'
+}
+
+export function todosInGroup(data: AppData, group: DayGroup, today = todayISO()): Todo[] {
+  return openTodos(data)
+    .filter((t) => dayGroup(t, today) === group)
+    .sort(byDueThenOrder)
+}
+
+/**
+ * Wat er verandert als je een taak naar een groep sleept, of null als dat niet kan.
+ * Een datum van vandaag of eerder houdt een taak op Vandaag; bij verplaatsen gaat die datum eraf
+ * (een herhalende taak blijft staan, die datum hoort bij het ritme).
+ */
+export function moveToGroup(todo: Todo, group: DayGroup, today = todayISO()): Partial<Todo> | null {
+  if (dayGroup(todo, today) === group) return null
+  const pinned = todo.due !== null && todo.due <= today
+  if (group !== 'today' && pinned && todo.recurrence) return null
+  const clearDue: Partial<Todo> = group !== 'today' && pinned ? { due: null, dueTime: null } : {}
+  if (group === 'today') return { bucket: 'now', weekOf: null }
+  if (group === 'week') return { bucket: 'now', weekOf: weekStart(today), ...clearDue }
+  return { bucket: 'later', weekOf: null, ...clearDue }
 }
 
 export function todosInBucket(data: AppData, bucket: Bucket, today = todayISO()): Todo[] {

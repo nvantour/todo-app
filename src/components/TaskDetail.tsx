@@ -7,8 +7,8 @@ import { apiCall, hasServer } from '../data/server'
 import { useSession } from '../data/session'
 import { parseAirtableUrl } from '../lib/airtable'
 import { describeRecurrence, todayISO } from '../lib/dates'
-import { effectiveBucket } from '../lib/selectors'
-import { SOURCE_ICON, SOURCE_NAME, isInternal } from '../lib/sources'
+import { dayGroup, moveToGroup } from '../lib/selectors'
+import { SOURCE_ICON, SOURCE_NAME, isInternal, sourceHref } from '../lib/sources'
 import { SourceLink } from './SourceLink'
 import { closeDetail, useOverlays } from '../ui/overlays'
 import { Panel } from './Panel'
@@ -47,6 +47,8 @@ function DetailPanel({ todo }: { todo: Todo }) {
   const SourceIcon = SOURCE_ICON[todo.source.type]
   const showSource = todo.source.type !== 'manual'
   const sourceLabel = todo.source.label || SOURCE_NAME[todo.source.type]
+  const sourceUrl = sourceHref(todo.source)
+  const group = dayGroup(todo, today)
   const recKey = recurrenceKey(todo.recurrence)
 
   function setRecurrence(key: string) {
@@ -136,15 +138,28 @@ function DetailPanel({ todo }: { todo: Todo }) {
       <div className="field">
         <span>Wanneer</span>
         <div className="seg" role="group" aria-label="Wanneer">
-          <button className={todo.bucket === 'now' ? 'is-on' : ''} onClick={() => patch({ bucket: 'now' })}>
-            Vandaag
-          </button>
-          <button className={todo.bucket === 'later' ? 'is-on' : ''} onClick={() => patch({ bucket: 'later' })}>
-            Om niet te vergeten
-          </button>
+          {(
+            [
+              ['today', 'Vandaag'],
+              ['week', 'Deze week'],
+              ['later', 'Niet vergeten'],
+            ] as const
+          ).map(([g, label]) => (
+            <button
+              key={g}
+              className={group === g ? 'is-on' : ''}
+              aria-pressed={group === g}
+              onClick={() => {
+                const change = moveToGroup(todo, g, today)
+                if (change) patch(change)
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-        {todo.bucket === 'later' && effectiveBucket(todo, today) === 'now' && (
-          <small>De datum is aangebroken, dus de taak staat nu bij “Vandaag”.</small>
+        {group === 'today' && todo.recurrence && todo.due !== null && todo.due <= today && (
+          <small>Deze herhalende taak staat vandaag gepland en blijft daarom bij “Vandaag”.</small>
         )}
       </div>
 
@@ -153,11 +168,11 @@ function DetailPanel({ todo }: { todo: Todo }) {
       {showSource && (
         <div className="field">
           <span>Bron</span>
-          {todo.source.url ? (
+          {sourceUrl ? (
             <SourceLink source={todo.source} className="source-link">
               {SourceIcon && <SourceIcon size={14} />}
               {sourceLabel}
-              {!isInternal(todo.source.url) && <ExternalLink size={13} />}
+              {!isInternal(sourceUrl) && <ExternalLink size={13} />}
             </SourceLink>
           ) : (
             <span className="source-link is-plain">

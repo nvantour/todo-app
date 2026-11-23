@@ -1,6 +1,6 @@
 import { CalendarClock, Database, Mail, MessageSquare, Mic, Sparkles, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { SourceType } from '../model/types'
+import type { Source, SourceType } from '../model/types'
 
 export const SOURCE_ICON: Partial<Record<SourceType, LucideIcon>> = {
   mail: Mail,
@@ -32,4 +32,22 @@ export function isInternal(url: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Waar de bron naartoe linkt. Meestal staat de link er al bij; zo niet, dan leiden we hem af uit het id
+ * dat Claude of een scan meegaf: een Gmail-id opent de thread in de Mail-tab, een Chat-bericht de space.
+ */
+export function sourceHref(source: Source): string | undefined {
+  if (source.url) return source.url
+  const id = source.externalId?.trim()
+  if (!id) return undefined
+  if (source.type === 'mail') {
+    const gmail = /^(?:gmail:)?([0-9a-f]{12,20})$/i.exec(id)
+    if (gmail) return `/mail#mail-${gmail[1]}`
+  }
+  const space = /^spaces\/([^/]+)/.exec(id)
+  if (space) return `https://mail.google.com/mail/u/0/#chat/space/${space[1]}`
+  if (/^https?:\/\//.test(id)) return id
+  return undefined
 }

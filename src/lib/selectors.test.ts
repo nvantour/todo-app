@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { AppData, Discussion, DiscussionItem } from '../model/types'
-import { discussionsWithOpenItems } from './selectors'
+import type { AppData, Discussion, DiscussionItem, Todo } from '../model/types'
+import { buildTodo } from '../data/logic'
+import { dayGroup, discussionsWithOpenItems, moveToGroup } from './selectors'
+import { sourceHref } from './sources'
 
 const item = (id: string, text: string, done = false): DiscussionItem => ({ id, text, done, doneAt: done ? '2026-11-22T09:00:00.000Z' : null })
 const group = (id: string, order: number, items: DiscussionItem[]): Discussion => ({
@@ -30,5 +32,46 @@ describe('bespreekgroepen voor Vandaag', () => {
   })
   it('telt een groep met alleen een kopje niet mee', () => {
     expect(discussionsWithOpenItems(data([group('Kop', 0, [item('a', 'Later:')])]))).toEqual([])
+  })
+})
+
+
+// 2026-11-25 is een woensdag; de week begint op maandag 2026-11-23.
+const wed = '2026-11-25'
+const t = (over: Partial<Todo> = {}): Todo => ({ ...buildTodo({ title: 't' }, 0), ...over })
+
+describe('Vandaag en Deze week', () => {
+  it('zonder week = Vandaag; geparkeerd deze week = Deze week; vorige week = weer Vandaag', () => {
+    expect(dayGroup(t(), wed)).toBe('today')
+    expect(dayGroup(t({ weekOf: '2026-11-23' }), wed)).toBe('week')
+    expect(dayGroup(t({ weekOf: '2026-11-16' }), wed)).toBe('today')
+    expect(dayGroup(t({ bucket: 'later' }), wed)).toBe('later')
+  })
+  it('een datum van vandaag of eerder wint van Deze week', () => {
+    expect(dayGroup(t({ weekOf: '2026-11-23', due: wed }), wed)).toBe('today')
+    expect(dayGroup(t({ weekOf: '2026-11-23', due: '2026-11-27' }), wed)).toBe('week')
+  })
+  it('verplaatsen zet de week, en haalt een datum van vandaag eraf', () => {
+    expect(moveToGroup(t(), 'week', wed)).toEqual({ bucket: 'now', weekOf: '2026-11-23' })
+    expect(moveToGroup(t({ weekOf: '2026-11-23' }), 'today', wed)).toEqual({ bucket: 'now', weekOf: null })
+    expect(moveToGroup(t({ due: wed, dueTime: '10:00' }), 'week', wed)).toEqual({ bucket: 'now', weekOf: '2026-11-23', due: null, dueTime: null })
+    expect(moveToGroup(t({ bucket: 'later' }), 'later', wed)).toBeNull()
+  })
+  it('een herhalende taak van vandaag blijft staan', () => {
+    expect(moveToGroup(t({ due: wed, recurrence: { freq: 'day', interval: 1 } as Todo['recurrence'] }), 'week', wed)).toBeNull()
+  })
+})
+
+describe('bronlink afleiden', () => {
+  it('bestaande link gaat voor', () => {
+    expect(sourceHref({ type: 'mail', url: 'https://x.nl', externalId: 'gmail:1a1f7b865a9a444d' })).toBe('https://x.nl')
+  })
+  it('Gmail-id opent de thread in de Mail-tab', () => {
+    expect(sourceHref({ type: 'mail', externalId: 'gmail:1a1f7b865a9a444d' })).toBe('/mail#mail-1a1f7b865a9a444d')
+    expect(sourceHref({ type: 'mail', externalId: '1a1fdc59d9b9b2f0' })).toBe('/mail#mail-1a1fdc59d9b9b2f0')
+  })
+  it('Chat-bericht opent de space; een eigen id blijft tekst', () => {
+    expect(sourceHref({ type: 'chat', externalId: 'spaces/AAA/messages/BBB' })).toBe('https://mail.google.com/mail/u/0/#chat/space/AAA')
+    expect(sourceHref({ type: 'chat', externalId: 'terug-van-vakantie:transavia' })).toBeUndefined()
   })
 })

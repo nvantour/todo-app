@@ -58,6 +58,8 @@ export interface Todo {
   calendarEventId: string | null
   /** Kolom op het bord (TaskStatus.id). Ontbreekt of onbekend = de eerste open status. Afgevinkt = de Finished-status. */
   statusId?: string | null
+  /** Geparkeerd in "Deze week": de maandag (YYYY-MM-DD) van die week. Een andere week = weer gewoon Vandaag. */
+  weekOf?: string | null
   order: number
   createdAt: string
   updatedAt: string
