@@ -36,6 +36,8 @@ Beperking bij Teams en Slack: de server ziet alleen wat als meldingsmail binnenk
 
 Elke open kaart hoort een conceptantwoord te hebben. De scan schrijft er geen (de server heeft bewust geen Claude-sleutel); Claude vult ze aan. `list_replies` geeft per kaart `hasDraft`; met `details: true` komen de berichten, het verzendadres en de uitleg mee, zodat Claude het concept kan schrijven en met `save_reply_drafts` (zelfde kanaal en `externalId`) op de kaart zet. Zie de skill `/chats-ophalen`, onderdeel "Alleen concepten aanvullen".
 
+Dat gebeurt vanzelf door de geplande taak **`antwoorden-concepten`** in de Claude-app (werkdagen elk uur om :05, kort na de scan; prompt in `~/.claude/scheduled-tasks/antwoorden-concepten/SKILL.md`). De taak draait alleen als de Claude-app op de laptop open staat; staat hij dicht, dan vult de eerstvolgende ronde aan. De taak verstuurt niets en maakt geen taken.
+
 ## Flow met Claude
 
 1. Nino typt `/chats-ophalen` in Claude (skill in de werkmap: `.claude/skills/chats-ophalen/`).
