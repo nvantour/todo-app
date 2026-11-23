@@ -10,8 +10,8 @@ import { draftFor, emptyDraft, outgoing, stripQuote, type Draft, type Mode } fro
 import {
   MAX_SEND_BYTES, getVacation, setVacation, createDraft, createLabel, deleteDraft, getAttachment, updateDraft, getSignature, getThread, listLabels,
   inInbox, labelCounts, listThreads, LoginNeeded, markRead, markUnread, send, setInInbox, setLabel,
-  setSaved, setSpam, setTrash, createRule, deleteRule, listRules,
-  type GmailDraft, type OutgoingFile, type Vacation, type Label, type ListQuery, type Outgoing, type Rule, type Thread, type ThreadSummary,
+  setSaved, setSpam, setTrash, createRule, deleteRule, listForwardAddresses, listRules, ruleProblem,
+  type GmailDraft, type OutgoingFile, type Vacation, type Label, type ListQuery, type Outgoing, type Rule, type RuleSpec, type Thread, type ThreadSummary,
 } from './mail';
 import * as R from './reminders';
 
@@ -95,6 +95,9 @@ const S = {
   ask: null as { label: string; from: string } | null,  // aanbod: regel maken na kiezen van een map
   rules: [] as Rule[],
   rulesState: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
+  // het formulier voor een nieuwe regel; hier bewaard zodat opnieuw tekenen niets wist
+  ruleDraft: { from: '', subject: '', body: '', act: 'label' as 'label' | 'forward', label: '', forward: '', skip: false },
+  forwardTo: [] as string[],         // adressen waar Gmail naar mag doorsturen (in Gmail bevestigd)
   addingMap: false,
   keys: false,                       // overzicht van sneltoetsen in het menu
   images: new Set<string>(),         // berichten waarvan externe afbeeldingen getoond mogen worden
@@ -197,10 +200,12 @@ async function loadCounts(force = false) {
 async function loadRules() {
   if (!S.account) return;
   const account = S.account;
-  S.rulesState = 'loading'; render();
+  S.rulesState = 'loading'; S.error = ''; render();
   try { const rules = await listRules(account); if (S.account === account) { S.rules = rules; S.rulesState = 'ready'; } }
   catch (e) { fail(e); S.rulesState = 'error'; }
   render();
+  // Voor de suggesties bij "stuur door naar"; niet erg als dit mislukt.
+  try { const to = await listForwardAddresses(account); if (S.account === account) { S.forwardTo = to; render(); } } catch { /* zonder suggesties verder */ }
 }
 
 /** Mappen en handtekening; niet erg als dit mislukt. */
@@ -406,29 +411,69 @@ async function saveVacation() {
   render();
 }
 
+/** Eén regel als zin: "Afzender bevat X en onderwerp bevat Y → Map · stuur door naar adres". */
+function ruleLine(r: RuleSpec) {
+  const when = [
+    r.from && `afzender bevat <b>${esc(r.from)}</b>`,
+    r.subject && `onderwerp bevat <b>${esc(r.subject)}</b>`,
+    r.body && `bericht bevat <b>${esc(r.body)}</b>`,
+  ].filter(Boolean).join(' en ');
+  const then = [
+    r.label && `<b>${esc(labelName(r.label))}</b>`,
+    r.forward && `stuur door naar <b>${esc(r.forward)}</b>`,
+    r.skipInbox && 'niet in Nieuw',
+  ].filter(Boolean).join(' · ');
+  return `${when.charAt(0).toUpperCase()}${when.slice(1)} → ${then}`;
+}
+
+/** De regel zoals hij nu in het formulier staat. */
+function draftRule(): RuleSpec {
+  const d = S.ruleDraft, maps = folders();
+  const spec: RuleSpec = { from: d.from.trim(), subject: d.subject.trim(), body: d.body.trim(), skipInbox: d.skip };
+  if (d.act === 'forward' || !maps.length) spec.forward = d.forward.trim();
+  else spec.label = maps.some((l) => l.id === d.label) ? d.label : maps[0].id;
+  return spec;
+}
+
 function rulesHTML() {
   const top = `<div class="top"><button class="icon" data-a="pane" data-v="nav" aria-label="Menu">${ICON.back}</button></div>`;
-  const opts = folders().map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('');
+  const d = S.ruleDraft, maps = folders(), fwd = d.act === 'forward' || !maps.length;
+  const opts = maps.map((l) => `<option value="${esc(l.id)}"${l.id === d.label ? ' selected' : ''}>${esc(l.name)}</option>`).join('');
   const rows = S.rulesState === 'loading' && !S.rules.length ? '<p class="hint">Regels ophalen…</p>'
     : S.rulesState === 'error' ? '<p class="hint">De regels konden niet laden. <button class="link" data-a="reload">Probeer opnieuw</button></p>'
     : S.rules.map((r) => r.simple
-      ? `<div class="rule"><span>${r.simple.field === 'from' ? 'Afzender' : 'Onderwerp'} bevat <b>${esc(r.simple.text)}</b> → <b>${esc(labelName(r.simple.label))}</b>${r.simple.skipInbox ? ' · niet in Nieuw' : ''}</span>
+      ? `<div class="rule"><span>${ruleLine(r.simple)}</span>
           <button class="btn ghost" data-a="delrule" data-v="${esc(r.id)}">Verwijder</button></div>`
       : `<div class="rule other"><span>Andere Gmail-regel: ${esc(r.summary.replace(/Label_\w+/g, (id) => labelName(id)))}</span><span class="hint">Beheer in Gmail</span></div>`).join('')
       || '<p class="hint">Nog geen regels.</p>';
   return `<div class="doc">${top}
     <h2>Regels</h2>
-    <p class="hint">Eén zin per regel. Nieuwe mail die past gaat naar de map, ook als de app dicht is (het zijn Gmail-filters). Zet “niet in Nieuw” aan voor mail die je alleen wilt terugvinden. Bestaande mail verandert niet.</p>
-    ${S.labels.length ? `<form class="ruleform" id="ruleform">
-      <span>Als</span>
-      <select id="rfield" aria-label="Veld"><option value="from">afzender</option><option value="subject">onderwerp</option></select>
-      <span>bevat</span>
-      <input type="text" id="rtext" placeholder="bijv. @klant.nl" aria-label="Tekst" autocomplete="off">
-      <span>→</span>
-      <select id="rlabel" aria-label="Map">${opts}</select>
-      <label><input type="checkbox" id="rskip"> niet in Nieuw</label>
-      <button class="btn pri">Voeg toe</button>
-    </form>` : '<p class="hint">Maak eerst een map via “+ Map” in het menu.</p>'}
+    <p class="hint">Nieuwe mail die past gaat naar een map of wordt doorgestuurd, ook als de app dicht is (het zijn Gmail-filters). Vul één of meer voorwaarden in; alles wat je invult moet kloppen. Bestaande mail verandert niet.</p>
+    <form class="ruleform" id="ruleform" novalidate>
+      <label for="r-from">Als afzender bevat</label>
+      <input type="text" id="r-from" value="${esc(d.from)}" placeholder="bijv. @klant.nl" autocomplete="off">
+      <label for="r-subject">en onderwerp bevat</label>
+      <input type="text" id="r-subject" value="${esc(d.subject)}" placeholder="bijv. factuur" autocomplete="off">
+      <label for="r-body">en bericht bevat</label>
+      <input type="text" id="r-body" value="${esc(d.body)}" placeholder="woorden uit de tekst" autocomplete="off">
+      <span aria-hidden="true">→</span>
+      <div class="then">
+        <select id="r-act" aria-label="Wat er gebeurt">
+          <option value="label"${fwd ? '' : ' selected'}${maps.length ? '' : ' disabled'}>naar map</option>
+          <option value="forward"${fwd ? ' selected' : ''}>stuur door naar</option>
+        </select>
+        ${fwd
+          ? `<input type="email" id="r-forward" value="${esc(d.forward)}" placeholder="naam@bedrijf.nl" list="r-fwdlist" aria-label="Doorsturen naar" autocomplete="off">
+             <datalist id="r-fwdlist">${S.forwardTo.map((a) => `<option value="${esc(a)}"></option>`).join('')}</datalist>`
+          : `<select id="r-label" aria-label="Map">${opts}</select>`}
+      </div>
+      <div class="end">
+        <label><input type="checkbox" id="r-skip"${d.skip ? ' checked' : ''}> niet in Nieuw</label>
+        <button class="btn pri">Voeg toe</button>
+      </div>
+    </form>
+    ${S.error ? `<p class="error" role="alert">${esc(S.error)}</p>` : ''}
+    ${fwd ? `<p class="hint">Gmail stuurt alleen door naar adressen die je in Gmail hebt toegevoegd en die de ontvanger heeft bevestigd${S.forwardTo.length ? ` (nu: ${S.forwardTo.map(esc).join(', ')})` : ''}. Een nieuw adres voeg je één keer toe in <a class="link" href="https://mail.google.com/mail/u/0/#settings/fwdandpop" target="_blank" rel="noopener">Gmail › Doorsturen</a>.</p>` : ''}
     <div>${rows}</div></div>`;
 }
 
@@ -652,6 +697,9 @@ function readHTML() {
     ${canReply ? composerHTML(draft) : ''}</div>`;
 }
 
+/** Cursorpositie in een tekstveld; een e-mailveld geeft die niet prijs. */
+function caret(el: HTMLInputElement): number | null { try { return el.selectionStart; } catch { return null; } }
+
 function render() {
   const app = appEl;
   if (!app) return;
@@ -660,13 +708,18 @@ function render() {
     app.className = 'app';
     app.innerHTML = '<nav id="nav" class="pane"></nav><section id="list" class="pane"></section><section id="read" class="pane"></section>';
   }
-  // Het zoekveld behoudt focus en cursor als de lijst opnieuw getekend wordt.
-  const q = root.activeElement?.id === 'q' ? ($('#q') as HTMLInputElement).selectionStart : null;
+  // Het zoekveld en het regelformulier behouden focus en cursor als er opnieuw getekend wordt.
+  const active = root.activeElement as HTMLInputElement | null;
+  const keep = active && (active.id === 'q' || active.id in RULE_FIELDS) ? { id: active.id, at: caret(active) } : null;
   app.classList.toggle('wide', WIDE(S.view) && !S.q);
   $('#nav').innerHTML = navHTML();
   $('#list').innerHTML = listHTML();
   $('#read').innerHTML = readHTML();
-  if (q !== null) { const el = $('#q') as HTMLInputElement | null; el?.focus(); el?.setSelectionRange(q, q); }
+  if (keep) {
+    const el = $(`#${keep.id}`) as HTMLInputElement | null;
+    el?.focus();
+    if (el && keep.at !== null) try { el.setSelectionRange(keep.at, keep.at); } catch { /* dit soort veld kent geen cursorpositie */ }
+  }
 }
 
 /* ---------- acties op threads ---------- */
@@ -1112,18 +1165,19 @@ const actions: Record<string, (v: string) => unknown> = {
   mkrule: async () => {
     const ask = S.ask, account = S.account;
     if (!ask || !account) return;
-    try { const r = await createRule(account, 'from', ask.from, ask.label, false); S.rules = [...S.rules, r]; toast(`Regel gemaakt: ${ask.from} → ${labelName(ask.label)}`); }
+    try { const r = await createRule(account, { from: ask.from, label: ask.label, skipInbox: false }); S.rules = [...S.rules, r]; toast(`Regel gemaakt: ${ask.from} → ${labelName(ask.label)}`); }
     catch (e) { fail(e); }
     S.ask = null; S.menu = null; render();
   },
   delrule: async (v) => {
     const r = S.rules.find((x) => x.id === v), account = S.account;
-    if (!r?.simple || !account) return;  // andere Gmail-filters (bijv. doorsturen) laat de app met rust
-    const { field, text, label, skipInbox } = r.simple;
+    if (!r?.simple || !account) return;  // filters die de app niet kan beschrijven laat hij met rust
+    const spec = r.simple;
+    S.error = '';
     try { await deleteRule(account, v); } catch (e) { fail(e); render(); return; }
     S.rules = S.rules.filter((x) => x.id !== v);
     toast('Regel verwijderd', async () => {
-      try { const back = await createRule(account, field, text, label, skipInbox); S.rules = [...S.rules, back]; } catch (e) { fail(e); }
+      try { const back = await createRule(account, spec); S.rules = [...S.rules, back]; } catch (e) { fail(e); }
       render();
     });
     render();
@@ -1256,9 +1310,13 @@ const on_keydown = ((ev: KeyboardEvent) => {
 
 // Typen in het schrijfvenster: alleen opslaan, niet opnieuw tekenen (anders verspringt de cursor).
 const FIELDS: Record<string, keyof Draft> = { 'c-to': 'to', 'c-cc': 'cc', 'c-bcc': 'bcc', 'c-subject': 'subject', 'c-body': 'body', 'c-remat': 'remAt' };
+const RULE_FIELDS: Record<string, 'from' | 'subject' | 'body' | 'forward'> = { 'r-from': 'from', 'r-subject': 'subject', 'r-body': 'body', 'r-forward': 'forward' };
 const on_input = ((ev: Event) => {
   const el = ev.target as HTMLInputElement;
   if (el.id === 'q') { S.qInput = el.value; if (!el.value && S.q) showList(S.view); return; }
+  // Typen in het regelformulier: alleen onthouden, niet opnieuw tekenen.
+  const rule = RULE_FIELDS[el.id];
+  if (rule) { S.ruleDraft[rule] = el.value; return; }
   const key = FIELDS[el.id], d = current();
   if (key && d) { (d as unknown as Record<string, string>)[key] = el.value; if (key !== 'remAt') scheduleSave(d); }
 });
@@ -1267,6 +1325,9 @@ const on_change = ((ev: Event) => {
   const el = ev.target as HTMLSelectElement;
   if (el.id === 'bulkmap' && el.value) bulkLabel(el.value);
   if (el.id === 'c-file') addFiles((el as unknown as HTMLInputElement).files);
+  if (el.id === 'r-act') { S.ruleDraft.act = el.value === 'forward' ? 'forward' : 'label'; render(); focus(S.ruleDraft.act === 'forward' ? '#r-forward' : '#r-label'); }
+  if (el.id === 'r-label') S.ruleDraft.label = el.value;
+  if (el.id === 'r-skip') S.ruleDraft.skip = (el as unknown as HTMLInputElement).checked;
   if (el.id === 'c-rem') { const d = current(); if (d) { d.rem = el.value; render(); if (d.rem === 'custom') focus('#c-remat'); } }
 });
 
@@ -1282,12 +1343,16 @@ const on_submit = (async (ev: Event) => {
   if (form.id === 'vacform') { ev.preventDefault(); saveVacation(); return; }
   if (form.id === 'ruleform') {
     ev.preventDefault();
-    const account = S.account, text = ($('#rtext') as HTMLInputElement).value.trim();
-    const field = ($('#rfield') as HTMLSelectElement).value as 'from' | 'subject', label = ($('#rlabel') as HTMLSelectElement).value;
-    const skip = ($('#rskip') as HTMLInputElement).checked;
-    if (!account || !label) return;
-    if (!text) { toast('Vul in waar de regel op let'); focus('#rtext'); return; }
-    try { const r = await createRule(account, field, text, label, skip); S.rules = [...S.rules, r]; toast('Regel toegevoegd'); }
+    const account = S.account, spec = draftRule(), problem = ruleProblem(spec);
+    if (!account) return;
+    if (problem) { toast(problem.message); focus(`#r-${problem.field}`); return; }
+    S.error = '';
+    try {
+      const r = await createRule(account, spec);
+      S.rules = [...S.rules, r];
+      S.ruleDraft = { ...S.ruleDraft, from: '', subject: '', body: '', forward: '', skip: false };
+      toast(spec.forward ? `Regel toegevoegd: nieuwe mail die past gaat door naar ${spec.forward}` : 'Regel toegevoegd');
+    }
     catch (e) { fail(e); }
     render();
     return;

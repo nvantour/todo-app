@@ -1,6 +1,7 @@
 import { LoginNeeded } from '../errors';
 import { expire, getToken, serverSession } from './auth';
 import { attachments, bodyHtml, bodyText, header, htmlToText, person, type Attachment, type Header, type Part } from './parse';
+import { toFilter, toRule, type RawFilter, type Rule, type RuleSpec } from './rules';
 
 const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
@@ -238,47 +239,32 @@ export const createLabel = (email: string, name: string) =>
 
 /* ---------- regels = Gmail-filters (werken ook als de app dicht is) ---------- */
 
-export interface Rule {
-  id: string;
-  /** Alleen gezet als het filter de vorm "afzender/onderwerp bevat X → map" heeft; anders null. */
-  simple: { field: 'from' | 'subject'; text: string; label: string; skipInbox: boolean } | null;
-  /** Leesbare omschrijving voor andere Gmail-filters (bijv. doorsturen). */
-  summary: string;
-}
-interface RawFilter {
-  id: string;
-  criteria?: Record<string, string | number | boolean>;
-  action?: { addLabelIds?: string[]; removeLabelIds?: string[]; forward?: string };
-}
-
-function toRule(f: RawFilter): Rule {
-  const c = f.criteria ?? {}, a = f.action ?? {};
-  const keys = Object.keys(c), add = (a.addLabelIds ?? []).filter((l) => l.startsWith('Label_'));
-  const rest = (a.removeLabelIds ?? []).filter((l) => l !== 'INBOX');
-  const simple = keys.length === 1 && (keys[0] === 'from' || keys[0] === 'subject') && add.length === 1
-    && !a.forward && !rest.length && (a.addLabelIds ?? []).length === 1
-    ? { field: keys[0] as 'from' | 'subject', text: String(c[keys[0]]), label: add[0], skipInbox: (a.removeLabelIds ?? []).includes('INBOX') }
-    : null;
-  const NAMES: Record<string, string> = { from: 'afzender', to: 'aan', subject: 'onderwerp', query: 'bevat', negatedQuery: 'bevat niet' };
-  const parts = [
-    ...keys.map((k) => `${NAMES[k] ?? k}: ${c[k]}`),
-    a.forward && `doorsturen naar ${a.forward}`,
-    (a.removeLabelIds ?? []).includes('INBOX') && 'niet in inbox',
-    (a.addLabelIds ?? []).length && `labels: ${(a.addLabelIds ?? []).join(', ')}`,
-  ].filter(Boolean);
-  return { id: f.id, simple, summary: parts.join(' · ') };
-}
+export type { Rule, RuleSpec } from './rules';
+export { ruleProblem } from './rules';
 
 export async function listRules(email: string): Promise<Rule[]> {
   const { filter = [] } = await gmail<{ filter?: RawFilter[] }>(email, '/settings/filters');
   return filter.map(toRule);
 }
 
-export const createRule = (email: string, field: 'from' | 'subject', text: string, label: string, skipInbox: boolean) =>
-  gmail<RawFilter>(email, '/settings/filters', {
-    method: 'POST',
-    body: JSON.stringify({ criteria: { [field]: text }, action: { addLabelIds: [label], removeLabelIds: skipInbox ? ['INBOX'] : [] } }),
-  }).then(toRule);
+/** Maakt het Gmail-filter bij een regel. Gmail stuurt alleen door naar adressen die het kent; dat leggen we uit. */
+export async function createRule(email: string, spec: RuleSpec): Promise<Rule> {
+  try {
+    return toRule(await gmail<RawFilter>(email, '/settings/filters', { method: 'POST', body: JSON.stringify(toFilter(spec)) }));
+  } catch (e) {
+    const msg = (e as Error).message;
+    if (/^Gmail 400/.test(msg) && /already exists/i.test(msg)) throw new Error('Deze regel bestaat al.');
+    if (spec.forward && /^Gmail 4\d\d/.test(msg) && /forward/i.test(msg))
+      throw new Error(`Gmail stuurt alleen door naar een adres dat het kent. Voeg ${spec.forward} eerst toe in Gmail (Instellingen › Doorsturen) en laat de ontvanger bevestigen; daarna kan de regel gemaakt worden.`);
+    throw e;
+  }
+}
+
+/** Adressen waar Gmail naar mag doorsturen: in Gmail toegevoegd en door de ontvanger bevestigd. */
+export async function listForwardAddresses(email: string): Promise<string[]> {
+  const { forwardingAddresses = [] } = await gmail<{ forwardingAddresses?: { forwardingEmail: string; verificationStatus?: string }[] }>(email, '/settings/forwardingAddresses');
+  return forwardingAddresses.filter((a) => a.verificationStatus === 'accepted').map((a) => a.forwardingEmail).sort((a, b) => a.localeCompare(b, 'nl'));
+}
 
 /** Verwijdert alleen regels die de app zelf kan beschrijven (de controle zit in de app). */
 export async function deleteRule(email: string, id: string) {

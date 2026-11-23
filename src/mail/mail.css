@@ -174,10 +174,13 @@ button:disabled{cursor:default;opacity:.6}
 .navlist button{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .navlist button>span:first-child{overflow:hidden;text-overflow:ellipsis}
 .navlist .n{font-size:12px;font-variant-numeric:tabular-nums;font-weight:400;color:var(--muted)}
-.ruleform{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px;background:var(--sel)}
-.ruleform select,.ruleform input[type=text]{padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font:inherit;font-size:13px;color:inherit;max-width:100%}
-.ruleform input[type=text]{flex:1;min-width:120px}
-.ruleform label{display:flex;gap:6px;align-items:center;font-size:13px}
+.ruleform{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 10px;align-items:center;padding:12px;background:var(--sel);font-size:13px}
+.ruleform select,.ruleform input[type=text],.ruleform input[type=email]{padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font:inherit;font-size:13px;color:inherit;max-width:100%}
+.ruleform>input{width:100%}
+.ruleform .then{display:flex;flex-wrap:wrap;gap:8px}
+.ruleform .then input,.ruleform .then #r-label{flex:1 1 180px;min-width:0}
+.ruleform .end{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.ruleform .end label{display:flex;gap:6px;align-items:center}
 .rule{display:flex;gap:10px;align-items:baseline;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line)}
 .rule.other{color:var(--muted)}
 .todo{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;padding:12px 20px;border-top:1px solid var(--line);align-items:center}
@@ -196,6 +199,7 @@ button:disabled{cursor:default;opacity:.6}
 .rule{flex-wrap:wrap}
 .rule>span:first-child{flex:1 1 240px;min-width:0;overflow-wrap:anywhere}
 a.btn{color:inherit;text-decoration:none;display:inline-block}
+a.link{color:inherit}
 
 /* sneltoetsen (uit prototype.html) */
 .navkeys{margin-top:auto;padding-top:12px}

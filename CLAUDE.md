@@ -64,6 +64,7 @@ Het volledige contract voor koppelingen staat in `docs/koppelingen.md`; serverin
 
 - De losse mailclient (`apps/Email client`) draait nu als Mail-tab: `src/mail/` (code van Email-Client, `mailApp.ts` = vroegere `main.ts`) in een Shadow DOM via `src/views/MailView.tsx`. Eigen stijlen in `src/mail/mail.css` (`:host`, `@container mail`).
 - Inloggen via de Google-koppeling: scopes `gmail.modify` + `gmail.settings.basic`; `GET /api/google/token` (alleen ID-token van de app) geeft een toegangsbewijs van een uur; het refresh-token blijft op de server.
+- Regels = Gmail-filters (werken ook als de app dicht is). Voorwaarden: afzender, onderwerp en/of bericht bevat (alles wat is ingevuld moet kloppen); actie: naar een map of doorsturen naar een adres, met optie "niet in Nieuw". Vertaling en controles in `src/mail/gmail/rules.ts` (los getest). Gmail stuurt alleen door naar adressen die in Gmail zijn toegevoegd en bevestigd (Instellingen › Doorsturen); een nieuw adres toevoegen kan niet via de app. Filters die meer doen dan dit toont de app als "Andere Gmail-regel" en laat hij met rust.
 - "Maak taak" en "Bespreek" in een thread praten via `MailHooks` met de store. Gepland verzenden staat uit (had de server van Email-Client nodig).
 - Google-koppeling ingesteld op 2026-11-22: OAuth-client "Todo server (agenda en chat)", secrets `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (versie 2).
 
