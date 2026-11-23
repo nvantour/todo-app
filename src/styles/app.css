@@ -2048,3 +2048,55 @@ button.check.is-small::after {
   color: var(--ink-3);
   font-size: 13px;
 }
+
+/* ---------- Nieuwe versie ---------- */
+
+.update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop);
+  border: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.update-banner svg {
+  color: var(--accent);
+  flex: none;
+}
+
+.update-banner button {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.update-banner__go {
+  background: var(--accent);
+  color: #fff;
+}
+
+.update-banner__later {
+  background: transparent;
+  color: var(--ink-3);
+}
+
+@media (max-width: 760px) {
+  .update-banner {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    font-size: 13px;
+  }
+}

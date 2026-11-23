@@ -17,11 +17,21 @@ import { QuickAddPage } from './views/QuickAddPage'
 import { ConnectPage } from './views/ConnectPage'
 import { LoginScreen } from './views/LoginScreen'
 import { useConnection } from './data/connection'
+import { UpdateBanner } from './components/UpdateBanner'
 import { openSearch, useOverlays } from './ui/overlays'
 
 export function App() {
   const { status } = useConnection()
 
+  return (
+    <>
+      <AppRoutes status={status} />
+      <UpdateBanner />
+    </>
+  )
+}
+
+function AppRoutes({ status }: { status: ReturnType<typeof useConnection>['status'] }) {
   if (status === 'loading') return <div className="splash" role="status">Even laden…</div>
   if (status === 'signedOut') return <LoginScreen />
 
