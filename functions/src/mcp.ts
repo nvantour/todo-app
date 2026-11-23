@@ -194,16 +194,34 @@ export function createMcpServer(service: TodoService, uid: string, schedule?: Sc
     'list_replies',
     {
       title: 'List replies',
-      description: "List cards on the 'Antwoorden' tab with their status (open, approved, sending, sent, failed, dismissed). Use it to see what is already there before saving new drafts. Read-only.",
-      inputSchema: { status: z.array(z.enum(['open', 'approved', 'sending', 'sent', 'failed', 'dismissed'])).optional() },
+      description:
+        "List cards on the 'Antwoorden' tab with their status (open, approved, sending, sent, failed, dismissed). Use it to see what is already there before saving new drafts. hasDraft:false means the card came from the server scan and still needs a proposed reply: every open card should have one. Pass details:true to also get the last messages, the target, the reason and the current draft, so you can write a draft for such a card and save it with save_reply_drafts under the same channel and externalId. Read-only.",
+      inputSchema: {
+        status: z.array(z.enum(['open', 'approved', 'sending', 'sent', 'failed', 'dismissed'])).optional(),
+        details: z.boolean().optional().describe('Also return messages, target, url, reason and draft per card'),
+      },
       annotations: { readOnlyHint: true },
     },
-    ({ status }) =>
+    ({ status, details }) =>
       guard(async () => {
         const list = await service.listReplies(uid, { status })
         return text({
           count: list.length,
-          replies: list.map((r) => ({ id: r.id, channel: r.channel, externalId: r.externalId, title: r.title, who: r.who, status: r.status, draftEdited: r.draftEdited, error: r.error, lastMessageAt: r.messages.at(-1)?.at ?? null })),
+          replies: list.map((r) => ({
+            id: r.id,
+            channel: r.channel,
+            externalId: r.externalId,
+            title: r.title,
+            who: r.who,
+            status: r.status,
+            hasDraft: r.draft.trim().length > 0,
+            draftEdited: r.draftEdited,
+            error: r.error,
+            lastMessageAt: r.messages.at(-1)?.at ?? null,
+            ...(details
+              ? { projectId: r.projectId, url: r.url, target: r.target, reason: r.reason, draft: r.draft, messages: r.messages.slice(-8).map((m) => ({ ...m, text: m.text.slice(0, 2000) })) }
+              : {}),
+          })),
         })
       }),
   )

@@ -167,7 +167,10 @@ function seedReplies(stamp: string): Reply[] {
       url: '/mail#mail-voorbeeld',
       target: { threadId: 'voorbeeld' },
       externalId: 'gmail:voorbeeld',
-      messages: [{ author: 'Thalia', text: 'Hoi Nino, kun je voor vrijdag laten weten welke tests we in Q1 als eerste oppakken?', at: '2026-11-23T08:12:00Z' }],
+      messages: [
+        { author: 'Nino', text: 'Hoi Thalia, de resultaten van Q4 staan in het rapport. Laat je weten wat je voor Q1 nodig hebt?', at: '2026-11-20T10:00:00Z', mine: true },
+        { author: 'Thalia', text: 'Hoi Nino, kun je voor vrijdag laten weten welke tests we in Q1 als eerste oppakken?', at: '2026-11-23T08:12:00Z' },
+      ],
       draft: 'Hoi Thalia,\n\nDat lukt. Ik stuur je donderdag de volgorde met een korte onderbouwing per test.\n\nGroet,\nNino',
       reason: 'Thalia vraagt voor vrijdag om de volgorde van de Q1-tests.',
     },

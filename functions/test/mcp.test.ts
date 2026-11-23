@@ -29,6 +29,26 @@ describe('MCP-tools', () => {
     const tools = Object.fromEntries((await client.listTools()).tools.map((t) => [t.name, t.description ?? '']))
     expect(tools.add_todo).toMatch(/literally asks/i)
     expect(tools.suggest_todo).toMatch(/found yourself/i)
+    // voorstellen zijn taken; een bericht dat alleen een antwoord vraagt hoort op Antwoorden
+    expect(tools.suggest_todo).toMatch(/save_reply_drafts/)
+  })
+
+  it('list_replies laat zien welke kaart nog geen concept heeft; met details erbij kan Claude er een schrijven', async () => {
+    const { call, service, repo } = await connect()
+    // zo zet de scan een kaart klaar: zonder concept
+    await service.saveReplies(UID, [
+      { channel: 'gchat', externalId: 'spaces/DM1', title: 'DM Anna', who: 'Anna', target: { space: 'spaces/DM1' }, messages: [{ author: 'Anna', text: 'Heb je de cijfers?', at: '2026-11-18T09:00:00.000Z' }], draft: '', reason: 'Anna wacht op je.' },
+    ])
+    const plain = (await call('list_replies', { status: ['open'] })).json()
+    expect(plain.replies[0]).toMatchObject({ externalId: 'spaces/DM1', hasDraft: false })
+    expect(plain.replies[0].messages).toBeUndefined()
+    const full = (await call('list_replies', { status: ['open'], details: true })).json()
+    expect(full.replies[0]).toMatchObject({ hasDraft: false, target: { space: 'spaces/DM1' }, reason: 'Anna wacht op je.', messages: [{ author: 'Anna', text: 'Heb je de cijfers?' }] })
+    // Claude schrijft het concept op dezelfde kaart
+    const saved = (await call('save_reply_drafts', { replies: [{ channel: 'gchat', externalId: 'spaces/DM1', title: 'DM Anna', who: 'Anna', target: { space: 'spaces/DM1' }, messages: full.replies[0].messages, draft: 'Ja, ik stuur ze zo.' }] })).json()
+    expect(saved).toMatchObject({ created: 0, updated: 1 })
+    expect(await repo.listReplies(UID)).toHaveLength(1)
+    expect((await call('list_replies', {})).json().replies[0].hasDraft).toBe(true)
   })
 
   it('voegt toe, lijst, wijzigt en vinkt af', async () => {

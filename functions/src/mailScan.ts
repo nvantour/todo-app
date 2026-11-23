@@ -75,13 +75,27 @@ function findPart(p: GmailPart | undefined, mime: string): GmailPart | null {
 
 function decodePart(p: GmailPart): string {
   const bytes = Buffer.from(p.body?.data ?? '', 'base64url')
+  // Gmail levert de tekst vaak al als UTF-8 aan, ook als de kopregel nog het oude tekenset noemt
+  // (anders wordt "Maïté" "MaÃ¯tÃ©"). Dus eerst UTF-8 proberen; alleen als dat niet klopt het genoemde tekenset.
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    // geen geldige UTF-8
+  }
   const charset = /charset="?([^";\s]+)/i.exec(partHeader(p, 'Content-Type'))?.[1] ?? 'utf-8'
   try {
     return new TextDecoder(charset).decode(bytes)
   } catch {
-    return bytes.toString('utf8')
+    return bytes.toString('latin1')
   }
 }
+
+/** Onzichtbare opvultekens weg (Teams en nieuwsbrieven vullen hun voorvertoning ermee) en spaties netjes. */
+export const tidy = (s: string) =>
+  s
+    .replace(/[\u200b-\u200f\u034f\u00ad\u2060\ufeff]/g, '')
+    .replace(/[ \t\u00a0]+/g, ' ')
+    .trim()
 
 /** Waar in de HTML de aangehaalde eerdere mail begint (Gmail, Outlook, Apple Mail). */
 const HTML_QUOTE = /<div[^>]+class="[^"]*gmail_quote|<blockquote|<div[^>]+id="(?:divRplyFwdMsg|appendonsend|mail-editor-reference-message-container)"|<div[^>]+style="[^"]*border-top:\s*solid\s*#[A-Fa-f0-9]{6}/i
@@ -247,7 +261,7 @@ export function mailCard(thread: GmailThread, me: string, mailCutoff = 0): Incom
     target: { threadId: thread.id },
     messages: msgs.slice(-3).map((m): ReplyMessage => {
       const mine = classify(m, me) === 'mine'
-      const text = stripQuoted(bodyText(m.payload)) || decodeEntities(m.snippet ?? '')
+      const text = stripQuoted(bodyText(m.payload)) || tidy(decodeEntities(m.snippet ?? ''))
       return { author: person(mailHeader(m, 'From')).name, text: clip(text), at: iso(m), ...(mine ? { mine: true } : {}) }
     }),
     draft: '',
@@ -276,7 +290,7 @@ export function teamsNotice(m: GmailMessage): IncomingReply | null {
   const from = person(mailHeader(m, 'From'))
   const named = from.name.includes('@') ? '' : from.name.replace(/\s+(?:in|via) (?:Microsoft )?Teams$/i, '').trim()
   const who = named || /^(.+?) (?:sent|mentioned|replied|has sent)\b/i.exec(subject)?.[1]?.trim() || 'Iemand'
-  const message: ReplyMessage = { author: who, text: clip(decodeEntities(m.snippet ?? '').trim() || subject), at: iso(m) }
+  const message: ReplyMessage = { author: who, text: clip(tidy(decodeEntities(m.snippet ?? '')) || subject), at: iso(m) }
 
   const chat = TEAMS_CHAT.exec(raw)
   if (chat) {
@@ -349,7 +363,7 @@ export function slackNotice(m: GmailMessage): IncomingReply | null {
   const fromSubject = /^(.+?) (?:mentioned you|sent you a message)\b/i.exec(subject)?.[1]?.trim()
   const lastOther = [...messages].reverse().find((x) => !x.mine)
   if (lastOther) lastOther.at = iso(m)
-  else messages.push({ author: fromSubject || 'Iemand', text: clip(decodeEntities(m.snippet ?? '').trim() || subject), at: iso(m) })
+  else messages.push({ author: fromSubject || 'Iemand', text: clip(tidy(decodeEntities(m.snippet ?? '')) || subject), at: iso(m) })
   const who = lastOther?.author ?? fromSubject ?? 'Iemand'
 
   const dm = channel.startsWith('D')

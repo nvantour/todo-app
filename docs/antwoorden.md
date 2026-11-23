@@ -25,6 +25,17 @@ Beperking bij Teams en Slack: de server ziet alleen wat als meldingsmail binnenk
 
 **Vanzelf weg** (`closeAnswered`): een open kaart voor Google Chat of mail gaat naar `dismissed` zodra de scan ziet dat jij in dat gesprek hebt gereageerd ná het laatste bericht van de ander. Een kaart waarvan jij het antwoord hebt aangepast blijft staan. Voor Teams en Slack kan de server dit niet zien; daar klik je Negeren. Een mailkaart van de scan zelf (zonder concept) gaat ook weg als de scan de thread opnieuw leest en er geen openstaande mail meer in ziet.
 
+## De kaart
+
+- **Bovenaan staat het antwoord** (tekstvak met het concept), daaronder de knoppen, daaronder het gesprek.
+- **Mail**: de app haalt de thread vers uit Gmail en toont de echte mail (opmaak, afbeeldingen, bijlagenamen), **nieuwste mail bovenaan**, in hetzelfde afgeschermde kader als de Mail-tab (`src/mail/render.ts`, `src/views/replies/mailLive.tsx` + `mailData.ts`). Lukt dat niet (testmodus, mail niet gekoppeld), dan staat de opgeslagen tekst van de scan er.
+- **Handtekening** (mail): onder het tekstvak staat de handtekening uit Gmail zoals hij meegaat. De Gmail-API geeft alleen de handtekening die in Gmail als **standaard voor nieuwe e-mails** is gekozen. Staat die op "Geen handtekening", dan gaat de mail zonder weg en zegt de kaart dat.
+- Een chat (Google Chat, Teams, Slack) blijft in de volgorde van het gesprek.
+
+## Altijd een concept
+
+Elke open kaart hoort een conceptantwoord te hebben. De scan schrijft er geen (de server heeft bewust geen Claude-sleutel); Claude vult ze aan. `list_replies` geeft per kaart `hasDraft`; met `details: true` komen de berichten, het verzendadres en de uitleg mee, zodat Claude het concept kan schrijven en met `save_reply_drafts` (zelfde kanaal en `externalId`) op de kaart zet. Zie de skill `/chats-ophalen`, onderdeel "Alleen concepten aanvullen".
+
 ## Flow met Claude
 
 1. Nino typt `/chats-ophalen` in Claude (skill in de werkmap: `.claude/skills/chats-ophalen/`).

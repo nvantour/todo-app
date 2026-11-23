@@ -15,6 +15,7 @@ import {
   type GmailDraft, type OutgoingFile, type Vacation, type Label, type ListQuery, type Outgoing, type Rule, type RuleRow, type RuleSpec, type Thread, type ThreadSummary,
 } from './mail';
 import * as R from './reminders';
+import { QUOTE, mailDoc } from './render';
 
 /** Wat de mail van het werk-OS nodig heeft: taken maken, bespreekpunten, naar Instellingen. */
 export interface MailHooks {
@@ -516,20 +517,6 @@ function listHTML() {
 }
 
 /* ---------- HTML-mails: afgeschermd kader, geen scripts, externe afbeeldingen pas na klik ---------- */
-
-const QUOTE = /gmail_quote|<blockquote|divRplyFwdMsg|yahoo_quoted/i;
-
-function mailDoc(html: string, images: boolean, quote: boolean) {
-  const remote = images ? ' https: http:' : '';
-  return `<!doctype html><html><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'${remote}; img-src data:${remote}; font-src data:${remote}">
-<base target="_blank"><style>
-html,body{margin:0;background:#fff;color:#141412}
-body{padding:14px 16px;font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;overflow-wrap:anywhere}
-img{max-width:100%;height:auto} table{max-width:100%} pre{white-space:pre-wrap}
-${quote ? '' : '.gmail_quote,blockquote[type=cite],.yahoo_quoted,#divRplyFwdMsg,#divRplyFwdMsg~*{display:none!important}'}
-</style></head><body>${html}</body></html>`;
-}
 
 /** HTML met de afbeeldingen uit de mail zelf (cid:) ingevuld, zodra die opgehaald zijn. */
 function withInline(m: Thread['messages'][number]) {

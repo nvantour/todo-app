@@ -6,6 +6,8 @@ import { CHANNELS, CHANNEL_NAME, SENT_BY_APP, visibleReplies } from '../data/rep
 import { approveReply, dismissReply, reopenReply } from '../data/sendReply'
 import { isInternal } from '../lib/sources'
 import { Link } from 'react-router-dom'
+import { LiveMailThread, SignaturePreview } from './replies/mailLive'
+import { useMailThread, useSignature } from './replies/mailData'
 
 const CHANNEL_ICON: Record<ReplyChannel, LucideIcon> = { mail: Mail, gchat: MessageSquare, slack: Hash, teams: Users, airtable: Database }
 
@@ -28,7 +30,7 @@ export function RepliesView() {
     <>
       <header className="view-header">
         <h1>Antwoorden</h1>
-        <p>Wie wacht er op jou. Pas het antwoord aan en verstuur met het vinkje.</p>
+        <p>Wie wacht er op jou. Bovenaan elk gesprek staat het antwoord: pas het aan en verstuur met het vinkje.</p>
       </header>
 
       <div className="seg reply-filter" role="group" aria-label="Kanaal">
@@ -65,7 +67,19 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
   const locked = reply.status === 'approved' || reply.status === 'sending' || reply.status === 'sent'
   // Teams en Slack gaan via het verzendscript; dat heeft de link naar het juiste gesprek nodig.
   const noAddress = (reply.channel === 'teams' || reply.channel === 'slack') && !reply.target.url
-  const messages = showAll ? reply.messages : reply.messages.slice(-3)
+  const isMail = reply.channel === 'mail'
+  const editable = reply.status === 'open' || reply.status === 'failed'
+  // Mail: de echte thread uit Gmail (met opmaak en afbeeldingen) en de handtekening die eronder komt.
+  const live = useMailThread(isMail ? reply.target.threadId : undefined, reply.updatedAt)
+  const signature = useSignature(isMail && editable)
+  // Mail leest van boven naar beneden: de nieuwste mail eerst. Een chat blijft in de volgorde van het gesprek.
+  const ordered = isMail ? [...reply.messages].reverse() : reply.messages
+  const messages = showAll ? ordered : isMail ? ordered.slice(0, 3) : ordered.slice(-3)
+  const more = reply.messages.length > 3 && !showAll && (
+    <button className="reply__more" onClick={() => setShowAll(true)}>
+      {reply.messages.length - 3} eerdere berichten
+    </button>
+  )
 
   // Een nieuwe ronde kan het voorstel bijwerken zolang Nino niets heeft aangepast.
   const [seenDraft, setSeenDraft] = useState(reply.draft)
@@ -140,22 +154,6 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
 
       {reply.reason && <p className="reply__reason">{reply.reason}</p>}
 
-      <div className="reply__thread">
-        {reply.messages.length > 3 && !showAll && (
-          <button className="reply__more" onClick={() => setShowAll(true)}>
-            {reply.messages.length - 3} eerdere berichten
-          </button>
-        )}
-        {messages.map((m, i) => (
-          <div key={i} className={`reply__msg${m.mine ? ' is-mine' : ''}`}>
-            <div className="reply__meta">
-              <b>{m.mine ? 'Jij' : m.author}</b> {time(m.at)}
-            </div>
-            <div className="reply__text">{m.text}</div>
-          </div>
-        ))}
-      </div>
-
       <textarea
         ref={box}
         className="reply__draft"
@@ -167,6 +165,7 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
         onBlur={saveDraft}
         rows={2}
       />
+      {isMail && editable && <SignaturePreview sig={signature} />}
 
       <footer className="reply__foot">
         <Status reply={reply} />
@@ -193,6 +192,23 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
           </button>
         ) : null}
       </footer>
+
+      {live ? (
+        <LiveMailThread live={live} />
+      ) : (
+        <div className={`reply__thread${isMail ? ' is-mail' : ''}`}>
+          {!isMail && more}
+          {messages.map((m, i) => (
+            <div key={i} className={`reply__msg${m.mine ? ' is-mine' : ''}`}>
+              <div className="reply__meta">
+                <b>{m.mine ? 'Jij' : m.author}</b> {time(m.at)}
+              </div>
+              <div className="reply__text">{m.text}</div>
+            </div>
+          ))}
+          {isMail && more}
+        </div>
+      )}
     </article>
   )
 }

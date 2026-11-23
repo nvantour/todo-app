@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classify, htmlToText, mailAnswered, mailCard, mergeNotices, pendingMessage, slackNotice, stripQuoted, teamsNotice, toMe, triageThread } from '../src/mailScan'
+import { bodyText, classify, htmlToText, mailAnswered, mailCard, mergeNotices, pendingMessage, slackNotice, stripQuoted, teamsNotice, tidy, toMe, triageThread } from '../src/mailScan'
 import { runReplyScan } from '../src/replyScan'
 import { UID } from './helpers'
 import { MY_MAIL, mailMsg, mailThread, scanSetup } from './sources.helpers'
@@ -137,6 +137,19 @@ describe('tekst uit een mail', () => {
     expect(stripQuoted('Akkoord.\n\nOp ma 16 nov 2026 om 10:00 schreef Nino <nino@od.com>:\nKan het?')).toBe('Akkoord.')
     expect(stripQuoted('Zie hieronder.\n\nFrom: Nino\nSent: maandag 16 november\nTo: Anna')).toBe('Zie hieronder.')
     expect(stripQuoted('Geen citaat hier.')).toBe('Geen citaat hier.')
+  })
+
+  it('leest namen met accenten goed, ook als de kopregel een ander tekenset noemt', () => {
+    const m = mailMsg(ANNA, { text: 'Groet, Maïté' })
+    m.payload!.parts![0].headers = [{ name: 'Content-Type', value: 'text/plain; charset="iso-8859-1"' }]
+    expect(bodyText(m.payload)).toBe('Groet, Maïté')
+    // echt Latin-1 (geen geldige UTF-8) wordt met het genoemde tekenset gelezen
+    m.payload!.parts![0].body = { data: Buffer.from('Groet, Maïté', 'latin1').toString('base64url'), size: 12 }
+    expect(bodyText(m.payload)).toBe('Groet, Maïté')
+  })
+
+  it('haalt onzichtbare opvultekens uit een voorvertoning', () => {
+    expect(tidy('In the meantime, have a very nice weekend! \u200c \u200c \u200c \u200c')).toBe('In the meantime, have a very nice weekend!')
   })
 
   it('zet HTML om naar leesbare tekst, zonder het citaat', () => {
