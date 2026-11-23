@@ -21,7 +21,7 @@ firebase deploy --only hosting                     # Alleen de app
 firebase deploy --only functions,hosting,firestore # Alles
 ```
 
-Deploy is handmatig met de Firebase-CLI (project `work-apps-48770`, gedeeld met Helder Mail). Er is geen automatische deploy bij een push.
+Deploy is handmatig met de Firebase-CLI (project `work-apps-48770`). Er is geen automatische deploy bij een push.
 
 ## Wat de app doet
 
@@ -62,11 +62,12 @@ Het volledige contract voor koppelingen staat in `docs/koppelingen.md`; serverin
 
 ## Mail (sinds 2026-11-22)
 
-- De losse mailclient (`apps/Email client`) draait nu als Mail-tab: `src/mail/` (code van Email-Client, `mailApp.ts` = vroegere `main.ts`) in een Shadow DOM via `src/views/MailView.tsx`. Eigen stijlen in `src/mail/mail.css` (`:host`, `@container mail`).
+- De mail draait als Mail-tab: `src/mail/` (`mailApp.ts` is het hart) in een Shadow DOM via `src/views/MailView.tsx`. Eigen stijlen in `src/mail/mail.css` (`:host`, `@container mail`).
+- De code komt uit de losse app Email-Client. Die is op 2026-11-23 uitgefaseerd: site `email-client-nino.web.app` en de server zijn offline, de lokale map `apps/Email client` is weg, de repo `nvantour/email-client` staat op alleen-lezen als naslag. Alleen de herkenningsregel `Email-Client thread:` in agenda-herinneringen heet nog zo, omdat bestaande herinneringen daarop gevonden worden.
 - Inloggen via de Google-koppeling: scopes `gmail.modify` + `gmail.settings.basic`; `GET /api/google/token` (alleen ID-token van de app) geeft een toegangsbewijs van een uur; het refresh-token blijft op de server.
 - Regels = Gmail-filters (werken ook als de app dicht is). Voorwaarden: afzender, onderwerp en/of bericht bevat (alles wat is ingevuld moet kloppen); actie: naar een map of doorsturen naar een adres, met optie "niet in Nieuw". Vertaling en controles in `src/mail/gmail/rules.ts` (los getest). Gmail stuurt alleen door naar adressen die in Gmail zijn toegevoegd en bevestigd (Instellingen › Doorsturen); een nieuw adres toevoegen kan niet via de app. Filters die meer doen dan dit toont de app als "Andere Gmail-regel" en laat hij met rust.
 - De tellers in het menu verversen elke 30 s en tekenen alleen het menu opnieuw. Nooit alles opnieuw tekenen vanuit een timer: dan valt de cursor uit het schrijfvenster en gelden toetsen als sneltoets (E = Klaar, Backspace = prullenbak).
-- "Maak taak" en "Bespreek" in een thread praten via `MailHooks` met de store. Gepland verzenden staat uit (had de server van Email-Client nodig).
+- "Maak taak" en "Bespreek" in een thread praten via `MailHooks` met de store. Gepland verzenden staat uit (daar is een taak op de server voor nodig; die heeft de todo-app nog niet).
 - Google-koppeling ingesteld op 2026-11-22: OAuth-client "Todo server (agenda en chat)", secrets `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (versie 2).
 
 ## Stand (2026-11-18)

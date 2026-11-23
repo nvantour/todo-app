@@ -8,7 +8,7 @@ export type Bucket = 'now' | 'later'
 export type SourceType =
   | 'manual' // getypt in de app
   | 'voice' // ingesproken
-  | 'mail' // Helder Mail / Gmail
+  | 'mail' // de Mail-tab (Gmail)
   | 'meeting' // Granola
   | 'calendar' // agenda-afspraak
   | 'airtable'

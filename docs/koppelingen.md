@@ -39,18 +39,18 @@ Tokens staan bewust **niet** onder `users/{uid}`: het document-id is de SHA-256-
 
 Datums zijn tekst: `YYYY-MM-DD` voor dagen, volledige ISO voor tijdstippen.
 
-## 1. Helder Mail (zelfde Firebase-project)
+## 1. Mail (de Mail-tab in de app zelf)
 
-De mail-app is met dezelfde gebruiker ingelogd en schrijft rechtstreeks een document in `users/{uid}/todos`:
+De Mail-tab draait in de app en maakt een taak via de store (`makeTask` in `src/views/MailView.tsx`). Er komt een document in `users/{uid}/todos` met deze bron:
 
 ```json
 {
   "title": "Reageren op vraag over SRM",
-  "source": { "type": "mail", "label": "Re: SRM in test 42", "url": "<link naar de thread in Helder Mail>", "externalId": "<Gmail threadId>" }
+  "source": { "type": "mail", "label": "Re: SRM in test 42", "url": "<link naar de thread in de Mail-tab>", "externalId": "<Gmail threadId>" }
 }
 ```
 
-Alle overige velden krijgen de standaardwaarden uit `buildTodo()` in `src/data/store.ts`. Is een todo afgevinkt, dan kan de mail-app dat aan `done` zien (zelfde document, live).
+Alle overige velden krijgen de standaardwaarden uit `buildTodo()` in `src/data/store.ts`.
 
 ## 2. Koppelpunt voor alles buiten Firebase (`api`)
 

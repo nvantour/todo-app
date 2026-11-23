@@ -54,7 +54,7 @@ export function todoFromSuggestion(s: Suggestion, order: number): Todo {
 }
 
 // Documenten uit Firestore kunnen door andere tools zijn aangemaakt met alleen een paar velden
-// (bv. Helder Mail schrijft alleen title + source). Vul de rest met standaardwaarden aan.
+// (bv. een koppeling schrijft alleen title + source). Vul de rest met standaardwaarden aan.
 
 type Raw = Record<string, unknown>
 

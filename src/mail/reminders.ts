@@ -17,7 +17,7 @@ export interface Reminder {
 }
 
 const API = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
-const MARK = 'Email-Client thread:';
+const MARK = 'Email-Client thread:';  // naam van de vroegere losse app; niet wijzigen, bestaande herinneringen worden hierop gevonden
 const cache = new Map<string, Reminder[]>();  // per account
 
 async function cal<T>(email: string, path: string, init: RequestInit = {}): Promise<T> {
@@ -69,7 +69,7 @@ export async function set(account: string, threadId: string, at: number, subject
     method: 'POST',
     body: JSON.stringify({
       summary: `Herinnering: ${subject}`,
-      description: [...(who ? [`Van/aan: ${who}`] : []), `Open in Email-Client: ${link}`, `Open in Gmail: https://mail.google.com/mail/u/0/#all/${threadId}`, '', `${MARK} ${threadId}`].join('\n'),
+      description: [...(who ? [`Van/aan: ${who}`] : []), `Open in Mail: ${link}`, `Open in Gmail: https://mail.google.com/mail/u/0/#all/${threadId}`, '', `${MARK} ${threadId}`].join('\n'),
       start: { dateTime: new Date(at).toISOString() },
       end: { dateTime: new Date(at + 5 * 60_000).toISOString() },
       transparency: 'transparent',   // telt niet als bezet
