@@ -218,6 +218,15 @@ export async function listLabels(email: string): Promise<Label[]> {
   return labels.filter((l) => l.type === 'user').map(({ id, name }) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'nl'));
 }
 
+/** Aantal threads per label (systeemlabels zoals INBOX en STARRED, of eigen mappen). Een label dat faalt telt niet mee. */
+export async function labelCounts(email: string, ids: string[]): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  await Promise.all(ids.map(async (id) => {
+    try { out[id] = (await gmail<{ threadsTotal?: number }>(email, `/labels/${encodeURIComponent(id)}`)).threadsTotal ?? 0; } catch { /* overslaan */ }
+  }));
+  return out;
+}
+
 export const createLabel = (email: string, name: string) =>
   gmail<Label>(email, '/labels', { method: 'POST', body: JSON.stringify({ name, labelListVisibility: 'labelShow', messageListVisibility: 'show' }) });
 

@@ -9,7 +9,7 @@ import { checkAccess, connectGoogle, type MailAccess } from './gmail/auth';
 import { draftFor, emptyDraft, outgoing, stripQuote, type Draft, type Mode } from './compose';
 import {
   MAX_SEND_BYTES, getVacation, setVacation, createDraft, createLabel, deleteDraft, getAttachment, updateDraft, getSignature, getThread, listLabels,
-  inInbox, listThreads, LoginNeeded, markRead, markUnread, send, setInInbox, setLabel,
+  inInbox, labelCounts, listThreads, LoginNeeded, markRead, markUnread, send, setInInbox, setLabel,
   setSaved, setSpam, setTrash, createRule, deleteRule, listRules,
   type GmailDraft, type OutgoingFile, type Vacation, type Label, type ListQuery, type Outgoing, type Rule, type Thread, type ThreadSummary,
 } from './mail';
@@ -74,6 +74,7 @@ const S = {
   qInput: '',                        // wat er in het zoekveld staat
   more: false,                       // Alle mail, Spam en Prullenbak tonen in het menu
   labels: [] as Label[],
+  counts: {} as Record<string, number>,  // aantal threads per map in het menu
   sig: { html: '', text: '' },
   threads: [] as ThreadSummary[],
   listState: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
@@ -165,6 +166,24 @@ async function loadList() {
     if (S.sel) S.sel = new Set([...S.sel].filter((id) => threads.some((t) => t.id === id)));
   } catch (e) { fail(e); S.listState = 'error'; }
   render();
+  void loadCounts();
+}
+
+/**
+ * Aantallen achter de mappen in het menu (Nieuw, Opgeslagen, eigen mappen, Concepten, Spam).
+ * Na elke lijst opnieuw, maar hooguit eens per paar seconden: het zijn losse verzoeken per map.
+ */
+let countsBusy = false, countsAt = 0;
+async function loadCounts(force = false) {
+  if (!S.account || countsBusy || (!force && Date.now() - countsAt < 4000)) return;
+  const account = S.account;
+  countsBusy = true;
+  try {
+    const counts = await labelCounts(account, [INBOX, 'STARRED', 'DRAFT', 'SPAM', ...folders().map((l) => l.id)]);
+    if (S.account !== account) return;
+    S.counts = counts; countsAt = Date.now();
+    render();
+  } finally { countsBusy = false; }
 }
 
 async function loadRules() {
@@ -188,6 +207,7 @@ async function loadMeta() {
   if (labels.status === 'fulfilled') S.labels = labels.value;
   if (sig.status === 'fulfilled') S.sig = sig.value;
   render();
+  void loadCounts(true);
 }
 
 async function openThread(id: string) {
@@ -275,14 +295,14 @@ function navHTML() {
   return `<div class="brand">Mail</div>
     ${gmail ? `<button class="btn pri block" data-a="compose">Nieuwe e-mail</button>` : ''}
     ${vacationOn() ? `<button class="ooo" data-a="view" data-v="${SETTINGS}">Afwezigheidsmelding staat aan${S.vacation?.endTime ? ` tot ${new Date(Number(S.vacation.endTime)).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}` : ''}</button>` : ''}
-    <div class="navlist">${row(INBOX)}${gmail ? row('STARRED') + row(REMIND, SYSTEM[REMIND], remCount) : ''}</div>
+    <div class="navlist">${row(INBOX, SYSTEM[INBOX], S.counts[INBOX])}${gmail ? row('STARRED', SYSTEM.STARRED, S.counts.STARRED) + row(REMIND, SYSTEM[REMIND], remCount) : ''}</div>
     ${gmail ? `<div><div class="label">Mappen</div><div class="navlist">
-      ${folders().map((l) => row(l.id, l.name)).join('')}
+      ${folders().map((l) => row(l.id, l.name, S.counts[l.id])).join('')}
       ${S.addingMap
         ? '<form id="mapform" class="mapform"><input class="field" id="newmap" type="text" placeholder="Naam van de map" aria-label="Naam van de map"><button class="btn">OK</button></form>'
         : '<button class="quiet" data-a="addmap">+ Map</button>'}
     </div></div>
-    <div class="navlist">${row('DRAFT')}${row('SENT')}${S.more ? row('ALL') + row('SPAM') + row('TRASH') : '<button class="quiet" data-a="more">Meer</button>'}</div>
+    <div class="navlist">${row('DRAFT', SYSTEM.DRAFT, S.counts.DRAFT)}${row('SENT')}${S.more ? row('ALL') + row('SPAM', SYSTEM.SPAM, S.counts.SPAM) + row('TRASH') : '<button class="quiet" data-a="more">Meer</button>'}</div>
     <div class="navlist">${row(RULES)}${row(SETTINGS)}</div>` : ''}
     <div><div class="label">Account</div><div class="navlist">
       <div class="acc"><span class="prov" title="${esc(S.account ?? '')}">${esc(S.account ?? '')}</span>
@@ -1309,7 +1329,7 @@ export function mountMail(el: HTMLElement, h: MailHooks, theme: string): () => v
   document.addEventListener('keydown', on_keydown);
   const onVisible = () => { if (!document.hidden) fireDue(); };
   document.addEventListener('visibilitychange', onVisible);
-  const timer = window.setInterval(fireDue, 30_000);
+  const timer = window.setInterval(() => { fireDue(); void loadCounts(); }, 30_000);
   // Bij wisselen tussen breed en smal: smal de open thread laten zien, anders de lijst.
   let wasNarrow = narrow();
   const ro = new ResizeObserver(() => {
