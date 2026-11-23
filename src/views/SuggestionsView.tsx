@@ -2,6 +2,7 @@ import { Check, X } from 'lucide-react'
 import { store, useAppData } from '../data/store'
 import { formatDue } from '../lib/dates'
 import { openSuggestions } from '../lib/selectors'
+import { SourceLink } from '../components/SourceLink'
 
 /** Wat AI en koppelingen hebben gevonden; pas een taak na jouw akkoord. */
 export function SuggestionsView() {
@@ -36,7 +37,11 @@ export function SuggestionsView() {
                     {project.name}
                   </span>
                 )}
-                {s.source.label && <span className="tag is-source">{s.source.label}</span>}
+                {s.source.label && (
+                  <SourceLink source={s.source} className={`tag is-source${s.source.url ? ' is-link' : ''}`} title={s.source.url ? `Open: ${s.source.label}` : s.source.label}>
+                    <span>{s.source.label}</span>
+                  </SourceLink>
+                )}
                 {s.due && <span className="tag is-plain">{formatDue(s.due)}</span>}
               </div>
             </div>
