@@ -68,6 +68,11 @@ describe('wat voor mail is dit?', () => {
     expect(classify(mailMsg('Airtable <noreply@airtable.com>'), ME)).toBe('auto')
     expect(classify(mailMsg('Stripe <invoice@stripe.com>'), ME)).toBe('auto')
     expect(classify(mailMsg('Conversion Hotel <app@conversionhotel.com>'), ME)).toBe('auto')
+    expect(classify(mailMsg('"Runway AI, Inc." <invoice+statements+acct_1Pv0@stripe.com>'), ME)).toBe('auto')
+    expect(classify(mailMsg('Transavia <confirmations-non@notification.transavia.com>'), ME)).toBe('auto')
+    // Gmail deelde hem zelf in bij Updates: een foutmelding van een tool, geen mens
+    expect(classify(mailMsg('Squeezely <info@squeezely.tech>', { labels: ['INBOX', 'CATEGORY_UPDATES'] }), ME)).toBe('auto')
+    expect(classify(mailMsg('Squeezely <info@squeezely.tech>', { labels: ['INBOX', 'CATEGORY_PERSONAL'] }), ME)).toBe('person')
     expect(classify(mailMsg('Nieuwsbrief <hallo@beehiiv.com>', { headers: { 'List-Unsubscribe': '<mailto:x@y.z>' } }), ME)).toBe('auto')
     expect(classify(mailMsg('Maxime <maxime@fr.transavia.com>', { subject: 'Réponse automatique : in path full vs lite' }), ME)).toBe('auto')
     expect(classify(mailMsg('Maxime <maxime@fr.transavia.com>', { headers: { 'Auto-Submitted': 'auto-replied' } }), ME)).toBe('auto')
@@ -97,6 +102,18 @@ describe('wacht deze mail op jou?', () => {
     expect(triageThread(mailThread('t2', mailMsg(ANNA, { to: 'lotte@onlinedialogue.com', cc: ME })), ME, CUTOFF)).toBeNull()
     expect(triageThread(mailThread('t3', mailMsg('Airtable <noreply@airtable.com>')), ME, CUTOFF)).toBeNull()
     expect(triageThread(mailThread('t4', mailMsg(ANNA, { labels: ['INBOX', 'DRAFT'] })), ME, CUTOFF)).toBeNull()
+  })
+
+  it('een oude vraag in een thread die zonder jou doorloopt telt niet meer', () => {
+    const since = Date.parse('2026-11-11T00:00:00Z')
+    const t = mailThread(
+      't1',
+      mailMsg('Glenda <glenda@klm.com>', { at: '2026-09-08T08:53:00Z' }), // aan jou, lang geleden
+      mailMsg('Glenda <glenda@klm.com>', { to: 'pim@onlinedialogue.com', cc: ME, at: '2026-11-17T10:00:00Z' }), // nu loopt het via Pim
+    )
+    expect(pendingMessage(t.messages!, ME)).not.toBeNull()
+    expect(pendingMessage(t.messages!, ME, since)).toBeNull()
+    expect(triageThread(t, ME, CUTOFF, since)).toBeNull()
   })
 
   it('meldingsmail van Teams of Slack telt alleen als hij recent is en nog in je inbox staat', () => {
@@ -263,6 +280,20 @@ describe('antwoorden-scan: mail, Teams en Slack', () => {
     data.mail[0].messages!.push(mailMsg('Nino <nino@onlinedialogue.com>', { ...SENT, at: '2026-11-17T12:00:00Z' }))
     expect(await runReplyScan(depsOf(ctx), UID)).toMatchObject({ closed: 1 })
     expect((await ctx.repo.listReplies(UID)).find((x) => x.channel === 'mail')?.status).toBe('dismissed')
+  })
+
+  it('een kaart van de scan gaat weg als de mail bij nader inzien niet op jou wacht; een kaart met concept blijft', async () => {
+    const data = { mail: inbox() }
+    const ctx = scanSetup(data)
+    await runReplyScan(depsOf(ctx), UID)
+    // dezelfde thread blijkt een melding: Gmail deelt hem in bij Updates
+    data.mail[0].messages![0].labelIds = ['INBOX', 'CATEGORY_UPDATES']
+    expect(await runReplyScan(depsOf(ctx), UID)).toMatchObject({ closed: 1 })
+    const card = (await ctx.repo.listReplies(UID)).find((x) => x.channel === 'mail')!
+    expect(card.status).toBe('dismissed')
+    // met een concept van Claude erop blijft hij staan: Claude vond dat er een antwoord moest komen
+    await ctx.repo.saveReply(UID, { ...card, status: 'open', draft: 'Komt donderdag.' })
+    expect(await runReplyScan(depsOf(ctx), UID)).toMatchObject({ closed: 0 })
   })
 
   it('mail niet te lezen: de scan meldt het en gaat verder', async () => {

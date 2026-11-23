@@ -155,6 +155,11 @@ export type MailKind = 'mine' | 'teams' | 'slack' | 'auto' | 'person'
 const AUTO_LOCAL =
   /^(?:.*no[-_.]?reply.*|.*do[-_.]?not[-_.]?reply.*|notifications?|notify|mailer-daemon|postmaster|bounces?|invoices?|receipts?|billing|newsletter|news|digest|updates?|alerts?|app|system|admin|security|welcome|mailer|marketing|calendar-notification)$/
 
+/** Verzenddomeinen voor meldingen, zoals notification.transavia.com. */
+const AUTO_DOMAIN = /(?:^|\.)(?:notifications?|no-?reply|bounces?|mailer)\./
+
+const AUTO_CATEGORIES = ['CATEGORY_UPDATES', 'CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS']
+
 const AUTO_SUBJECT =
   /^(?:automatic reply|automatisch antwoord|réponse automatique|abwesenheit|out of office|afwezig|auto-?reply|delivery status notification|undeliverable|niet bezorgd|invitation:|updated invitation|uitnodiging:|bijgewerkte uitnodiging|accepted:|geaccepteerd:|declined:|afgewezen:|tentatively accepted:|voorlopig geaccepteerd:|cancell?ed|geannuleerd)/i
 
@@ -164,10 +169,13 @@ const SHARE_SUBJECT = /\bshared\b.*\bwith you\b|\bmet je gedeeld\b/i
 export function classify(m: GmailMessage, me: string): MailKind {
   const from = person(mailHeader(m, 'From'))
   if (m.labelIds?.includes('SENT') || normAddress(from.email) === normAddress(me)) return 'mine'
-  const [local = '', domain = ''] = from.email.split('@')
+  const [rawLocal = '', domain = ''] = from.email.split('@')
+  const local = rawLocal.replace(/\+.*$/, '') // invoice+statements+acct_1@stripe.com → invoice
   if (domain === 'teams.mail.microsoft' || domain === 'email.teams.microsoft.com') return 'teams'
   if (domain === 'slack.com' && local.startsWith('notification')) return 'slack'
-  if (AUTO_LOCAL.test(local)) return 'auto'
+  if (AUTO_LOCAL.test(local) || AUTO_DOMAIN.test(domain)) return 'auto'
+  // Gmail deelt bevestigingen, bonnetjes en meldingen zelf in bij Updates (en reclame bij Promoties).
+  if (m.labelIds?.some((l) => AUTO_CATEGORIES.includes(l))) return 'auto'
   if (mailHeader(m, 'List-Unsubscribe') || mailHeader(m, 'List-Id')) return 'auto'
   const auto = mailHeader(m, 'Auto-Submitted').trim().toLowerCase()
   if (auto && auto !== 'no') return 'auto'
@@ -182,9 +190,14 @@ export function classify(m: GmailMessage, me: string): MailKind {
 export const toMe = (m: GmailMessage, me: string): boolean =>
   (mailHeader(m, 'To').match(ADDRESS) ?? []).some((a) => normAddress(a) === normAddress(me))
 
-/** Het laatste bericht van een mens, aan jou gericht, waar jij daarna niet meer op hebt gereageerd. */
-export function pendingMessage(msgs: GmailMessage[], me: string): GmailMessage | null {
+/**
+ * Het laatste bericht van een mens, aan jou gericht, waar jij daarna niet meer op hebt gereageerd.
+ * Alleen berichten vanaf `sinceMs` tellen: een oude vraag in een thread die al weken zonder jou doorloopt
+ * (jij in cc) is geen openstaand antwoord meer.
+ */
+export function pendingMessage(msgs: GmailMessage[], me: string, sinceMs = 0): GmailMessage | null {
   for (let i = msgs.length - 1; i >= 0; i--) {
+    if (at(msgs[i]) < sinceMs) return null
     const kind = classify(msgs[i], me)
     if (kind === 'mine') return null
     if (kind === 'person' && toMe(msgs[i], me)) return msgs[i]
@@ -198,7 +211,7 @@ export function pendingMessage(msgs: GmailMessage[], me: string): GmailMessage |
  * - 'person': iemand wacht op jouw antwoord;
  * - null: niets te doen (nieuwsbrief, melding, alleen in cc, of jij reageerde als laatste).
  */
-export function triageThread(thread: GmailThread, me: string, noticeCutoff: number): 'person' | 'notify' | null {
+export function triageThread(thread: GmailThread, me: string, noticeCutoff: number, mailCutoff = 0): 'person' | 'notify' | null {
   const msgs = liveMessages(thread)
   if (!msgs.length) return null
   const notice = msgs.some((m) => {
@@ -207,7 +220,7 @@ export function triageThread(thread: GmailThread, me: string, noticeCutoff: numb
     return kind === 'teams' || kind === 'slack'
   })
   if (notice) return 'notify'
-  return pendingMessage(msgs, me) ? 'person' : null
+  return pendingMessage(msgs, me, mailCutoff) ? 'person' : null
 }
 
 /** Jij reageerde als laatste in deze thread, en dat was ná `sinceMs`. */
@@ -219,9 +232,9 @@ export function mailAnswered(thread: GmailThread, me: string, sinceMs: number): 
 // --- kaarten ---
 
 /** Kaart voor een mail die op jouw antwoord wacht. Verwacht de thread mét tekst (format=full). */
-export function mailCard(thread: GmailThread, me: string): IncomingReply | null {
+export function mailCard(thread: GmailThread, me: string, mailCutoff = 0): IncomingReply | null {
   const msgs = liveMessages(thread)
-  const pending = pendingMessage(msgs, me)
+  const pending = pendingMessage(msgs, me, mailCutoff)
   if (!pending || hasCalendarPart(pending.payload)) return null
   const who = person(mailHeader(pending, 'From')).name
   const subject = cleanSubject(mailHeader(pending, 'Subject') || mailHeader(msgs[0], 'Subject'))

@@ -15,7 +15,7 @@ Twee bronnen vullen de tab:
 Vaste herkenning, geen Claude-sleutel. De scan leest alleen en verstuurt nooit iets.
 
 - **Google Chat** (laatste 3 dagen): een DM waarvan het laatste bericht niet van jou is, en een vermelding (@jou) zonder later bericht van jou in dezelfde thread. Regels: `findReplyCandidates` in `chatScan.ts`.
-- **Mail** (inbox, laatste 7 dagen): een mail van een mens, met jou bij **Aan** (alleen cc telt niet), waar jij daarna niet meer op hebt gereageerd. Nieuwsbrieven, meldingen, automatische antwoorden, uitnodigingen en "gedeeld met jou" vallen af. Regels: `classify` en `pendingMessage` in `mailScan.ts`.
+- **Mail** (inbox, laatste 7 dagen): een mail van een mens, met jou bij **Aan** (alleen cc telt niet), waar jij daarna niet meer op hebt gereageerd. Nieuwsbrieven, meldingen, bonnetjes, automatische antwoorden, uitnodigingen en "gedeeld met jou" vallen af: op afzender (`noreply@`, `invoice@`, `notification.`-domeinen), op kopregels (`List-Unsubscribe`, `Auto-Submitted`), op onderwerp, en op de categorie die Gmail zelf geeft (Updates, Promoties, Sociaal, Forums). Een oude vraag in een thread die al langer dan 7 dagen zonder jou doorloopt (jij alleen nog in cc) telt ook niet. Regels: `classify` en `pendingMessage` in `mailScan.ts`.
 - **Teams** (laatste 3 dagen): meldingsmails van `no-reply@teams.mail.microsoft` ("X sent a message") die nog in je inbox staan. De link in de mail wijst het gesprek aan; dat wordt het verzendadres (`target.url`).
 - **Slack** (laatste 3 dagen): meldingsmails van `notification@slack.com` (vermelding of DM) die nog in je inbox staan. De kaart heeft geen verzendadres: uit de mail is niet zeker in welke thread het antwoord hoort. Antwoorden doe je in Slack zelf (knop "Open het gesprek"), of Claude vult het adres aan met `/chats-ophalen`.
 
@@ -23,7 +23,7 @@ Beperking bij Teams en Slack: de server ziet alleen wat als meldingsmail binnenk
 
 **Aansluiten op bestaande kaarten** (`alignWithExisting`): hoort een vondst bij een kaart die er al staat (zelfde mail-thread, chat, Teams-gesprek of Slack-kanaal), dan wordt die kaart bijgewerkt. Naam, verzendadres, concept en uitleg van Claude blijven staan.
 
-**Vanzelf weg** (`closeAnswered`): een open kaart voor Google Chat of mail gaat naar `dismissed` zodra de scan ziet dat jij in dat gesprek hebt gereageerd ná het laatste bericht van de ander. Een kaart waarvan jij het antwoord hebt aangepast blijft staan. Voor Teams en Slack kan de server dit niet zien; daar klik je Negeren.
+**Vanzelf weg** (`closeAnswered`): een open kaart voor Google Chat of mail gaat naar `dismissed` zodra de scan ziet dat jij in dat gesprek hebt gereageerd ná het laatste bericht van de ander. Een kaart waarvan jij het antwoord hebt aangepast blijft staan. Voor Teams en Slack kan de server dit niet zien; daar klik je Negeren. Een mailkaart van de scan zelf (zonder concept) gaat ook weg als de scan de thread opnieuw leest en er geen openstaande mail meer in ziet.
 
 ## Flow met Claude
 

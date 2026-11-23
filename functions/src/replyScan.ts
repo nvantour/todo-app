@@ -9,7 +9,7 @@ import { CHAT_DAYS, chatAnswered, chatCards, lastOtherAt, pool, readChats, type 
 import { HttpError } from './errors'
 import { hasChat, hasMail } from './google'
 import type { GmailThread, GoogleApi } from './googleApi'
-import { MAIL_QUERY, MAX_MAIL_THREADS, NOTICE_DAYS, mailAnswered, mailCard, mergeNotices, noticeCards, triageThread } from './mailScan'
+import { MAIL_DAYS, MAIL_QUERY, MAX_MAIL_THREADS, NOTICE_DAYS, liveMessages, mailAnswered, mailCard, mergeNotices, noticeCards, pendingMessage, triageThread } from './mailScan'
 import type { Repo } from './repo'
 
 const DAY = 86_400_000
@@ -32,6 +32,8 @@ interface MailRead {
   cards: IncomingReply[]
   /** Alle gelezen threads (alleen kopregels), voor de controle "heb jij al geantwoord?". */
   threads: Map<string, GmailThread>
+  /** Vanaf wanneer een mail nog als openstaand telt (ms). */
+  cutoff: number
 }
 
 const message = (e: unknown) => (e instanceof HttpError ? e.message : 'lezen mislukte.')
@@ -51,12 +53,13 @@ async function readMail(api: GoogleApi, me: string, now: number, onError?: (e: u
   if (ids.length > 0 && failed === ids.length) throw new HttpError(502, 'google_unavailable', 'Geen enkele mail was te lezen. Is de Gmail API aangezet?')
 
   const noticeCutoff = now - NOTICE_DAYS * DAY
+  const mailCutoff = now - MAIL_DAYS * DAY
   const threads = new Map<string, GmailThread>()
   const wanted: { id: string; kind: 'person' | 'notify' }[] = []
   for (const th of meta) {
     if (!th) continue
     threads.set(th.id, th)
-    const kind = triageThread(th, me, noticeCutoff)
+    const kind = triageThread(th, me, noticeCutoff, mailCutoff)
     if (kind) wanted.push({ id: th.id, kind })
   }
 
@@ -74,11 +77,11 @@ async function readMail(api: GoogleApi, me: string, now: number, onError?: (e: u
     if (!f) continue
     if (f.kind === 'notify') notices.push(...noticeCards(f.thread, me, noticeCutoff))
     else {
-      const card = mailCard(f.thread, me)
+      const card = mailCard(f.thread, me, mailCutoff)
       if (card) cards.push(card)
     }
   }
-  return { cards: [...cards, ...mergeNotices(notices)], threads }
+  return { cards: [...cards, ...mergeNotices(notices)], threads, cutoff: mailCutoff }
 }
 
 const sameText = (a: string, b: string) => a.replace(/\s+/g, ' ').trim().slice(0, 80) === b.replace(/\s+/g, ' ').trim().slice(0, 80)
@@ -137,7 +140,11 @@ export function alignWithExisting(card: IncomingReply, existing: Reply[]): Incom
   }
 }
 
-/** Kaarten weghalen waar jij in het gesprek zelf al op hebt gereageerd. Een aangepast concept blijft staan. */
+/**
+ * Kaarten weghalen waar jij in het gesprek zelf al op hebt gereageerd. Een aangepast concept blijft staan.
+ * Een mailkaart van de scan zelf (zonder concept) gaat ook weg als de scan die thread deze ronde heeft gelezen
+ * en er geen openstaande mail meer in ziet (het gesprek liep zonder jou verder, of het bleek een melding).
+ */
 async function closeAnswered(
   repo: Repo,
   uid: string,
@@ -154,6 +161,7 @@ async function closeAnswered(
     if (r.channel === 'mail' && ctx.mail) {
       const id = r.target.threadId ?? r.externalId.replace(/^gmail:/, '')
       let thread = ctx.mail.threads.get(id)
+      const readThisRound = !!thread
       if (!thread && rechecked < MAX_RECHECK) {
         rechecked++
         try {
@@ -163,6 +171,7 @@ async function closeAnswered(
         }
       }
       answered = !!thread && mailAnswered(thread, ctx.meEmail, lastOtherAt(r))
+      if (!answered && thread && readThisRound && !r.draft) answered = !pendingMessage(liveMessages(thread), ctx.meEmail, ctx.mail.cutoff)
     }
     if (!answered) continue
     await repo.saveReply(uid, { ...r, status: 'dismissed', updatedAt: ctx.stamp })
