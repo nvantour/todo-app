@@ -71,6 +71,17 @@ export function attachments(p: Part, out: Attachment[] = []) {
   return out;
 }
 
+/** Afbeelding in de mail zelf (src="cid:…"): Content-ID plus waar de bytes staan. */
+export interface InlinePart { cid: string; mime: string; id?: string; data?: string }
+
+export function inlineParts(p: Part, out: InlinePart[] = []) {
+  const cid = header(p.headers, 'Content-ID').replace(/^\s*<|>\s*$/g, '').trim();
+  if (cid && p.mimeType.startsWith('image/') && (p.body?.attachmentId || p.body?.data))
+    out.push({ cid, mime: p.mimeType, id: p.body.attachmentId, data: p.body.data });
+  (p.parts ?? []).forEach((c) => inlineParts(c, out));
+  return out;
+}
+
 /** "Naam <adres>" → { name, email } */
 export function person(v: string) {
   const m = /^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/.exec(v);

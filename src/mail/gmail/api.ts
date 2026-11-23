@@ -1,6 +1,6 @@
 import { LoginNeeded } from '../errors';
 import { expire, getToken, serverSession } from './auth';
-import { attachments, bodyHtml, bodyText, header, htmlToText, person, type Attachment, type Header, type Part } from './parse';
+import { attachments, bodyHtml, bodyText, header, htmlToText, inlineParts, person, type Attachment, type Header, type InlinePart, type Part } from './parse';
 import { splitForward, toFilter, toRule, type RawFilter, type Rule, type RuleSpec } from './rules';
 
 const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -37,6 +37,7 @@ export interface Message {
   id: string; from: string; fromEmail: string; to: string; date: number; me: boolean;
   snippet: string; body: string; attachments: Attachment[];
   html?: string;  // HTML-versie, als die er is (alleen Gmail)
+  inline?: InlinePart[];  // afbeeldingen in de mail zelf (cid:)
   // ruwe kopregels, nodig om te beantwoorden en door te sturen
   fromRaw: string; replyTo: string; toRaw: string; ccRaw: string; messageId: string; references: string;
 }
@@ -164,6 +165,7 @@ export async function getThread(email: string, id: string): Promise<Thread> {
         body: bodyText(m.payload),
         html: bodyHtml(m.payload),
         attachments: attachments(m.payload),
+        inline: inlineParts(m.payload),
         fromRaw: header(h, 'From'),
         replyTo: header(h, 'Reply-To'),
         toRaw: header(h, 'To'),
@@ -397,4 +399,28 @@ function mimeRaw(m: Outgoing) {
   });
   return [...head, '', `--${mixed}`, `Content-Type: multipart/alternative; boundary="${boundary}"`, '', alternative,
     ...files, `--${mixed}--`, ''].join('\r\n');
+}
+
+/* ---------- meeting-acceptaties: niet in Nieuw, gelezen en weg ---------- */
+
+/** "Geaccepteerd: …" en "Accepted: …" met de agenda-uitnodiging erbij (zo vallen gewone mails met dat woord erbuiten). */
+export const ACCEPTED_QUERY = 'subject:(Accepted OR Geaccepteerd OR Akzeptiert) filename:ics';
+
+/** Gmail-filter dat nieuwe acceptaties meteen gelezen in de prullenbak zet (werkt ook als de app dicht is). Eén keer aanmaken. */
+export async function ensureAcceptedRule(email: string) {
+  const { filter = [] } = await gmail<{ filter?: RawFilter[] }>(email, '/settings/filters');
+  if (filter.some((f) => f.criteria?.query === ACCEPTED_QUERY)) return;
+  const make = (add: string[]) => gmail(email, '/settings/filters', {
+    method: 'POST', body: JSON.stringify({ criteria: { query: ACCEPTED_QUERY }, action: { addLabelIds: add, removeLabelIds: ['INBOX', 'UNREAD'] } }),
+  });
+  // Lukt de prullenbak als filteractie niet, dan in elk geval gelezen en uit Nieuw; de app ruimt de rest op.
+  try { await make(['TRASH']); } catch { await make([]); }
+}
+
+/** Acceptaties die nog in Nieuw staan: gelezen en naar de prullenbak. Geeft het aantal terug. */
+export async function cleanAccepted(email: string): Promise<number> {
+  const p = new URLSearchParams({ q: `in:inbox ${ACCEPTED_QUERY}`, maxResults: '100' });
+  const { threads = [] } = await gmail<{ threads?: { id: string }[] }>(email, `/threads?${p}`);
+  await Promise.all(threads.map(async (t) => { await markRead(email, t.id); await setTrash(email, t.id, true); }));
+  return threads.length;
 }

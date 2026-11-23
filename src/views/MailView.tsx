@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { store } from '../data/store'
+import { openMailTasks } from '../lib/mailTasks'
 import { buildDiscussionItem } from '../data/logic'
 import { detectProject } from '../lib/detect'
 import { getTheme, useTheme } from '../lib/theme'
-import { mountMail, setMailTheme, type MailHooks } from '../mail/mailApp'
+import { mountMail, setMailTheme, tasksChanged, type MailHooks } from '../mail/mailApp'
 
 /**
  * De Mail-tab: de mailclient draait in een eigen afgeschermd vak (Shadow DOM) en praat met het
@@ -39,8 +40,11 @@ export function MailView() {
         return d.title
       },
       openSettings: () => navigate('/instellingen'),
+      tasks: () => openMailTasks(store.getSnapshot().todos),
     }
-    return mountMail(el, hooks, getTheme())
+    const unmount = mountMail(el, hooks, getTheme())
+    const unsubscribe = store.subscribe(tasksChanged)
+    return () => { unsubscribe(); unmount() }
   }, [navigate])
 
   useEffect(() => setMailTheme(theme), [theme])

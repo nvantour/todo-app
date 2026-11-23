@@ -11,7 +11,7 @@ import {
   MAX_SEND_BYTES, getVacation, setVacation, createDraft, createLabel, deleteDraft, getAttachment, updateDraft, getSignature, getThread, listLabels,
   inInbox, labelCounts, listThreads, LoginNeeded, markRead, markUnread, send, setInInbox, setLabel,
   setSaved, setSpam, setTrash, createRule, createRules, deleteRule, groupRules, listForwardAddresses, listRules, parseAddresses, ruleProblem,
-  sameRule, splitForward, toggleAddress,
+  sameRule, splitForward, toggleAddress, ensureAcceptedRule, cleanAccepted, ACCEPTED_QUERY,
   type GmailDraft, type OutgoingFile, type Vacation, type Label, type ListQuery, type Outgoing, type Rule, type RuleRow, type RuleSpec, type Thread, type ThreadSummary,
 } from './mail';
 import * as R from './reminders';
@@ -25,6 +25,8 @@ export interface MailHooks {
   /** Zet een punt in een bespreekgroep; geeft de groepsnaam terug. */
   addPoint(groupId: string, text: string): string;
   openSettings(): void;
+  /** Open taken in het werk-OS per thread-id (titel van de taak), voor het label "Taak". */
+  tasks(): Map<string, string>;
 }
 
 let root!: ShadowRoot;      // het afgeschermde vak waar de mail in staat
@@ -66,7 +68,7 @@ const TODO_NAME = 'Todo';
 const RULES = 'RULES';    // breed scherm zonder lijst: de Gmail-filters
 const SETTINGS = 'SETTINGS';  // breed scherm: afwezigheidsmelding
 const SCHEDULED = 'SCHEDULED';  // staat op de server, niet in Gmail
-const WIDE = (v: string) => v === RULES || v === SETTINGS;
+const WIDE = (v: string) => v === SETTINGS;
 
 const UNREAD_KEY = 'mail:new-unread-only';
 function savedUnreadOnly() {
@@ -100,8 +102,8 @@ const S = {
   ruleDraft: { from: '', subject: '', body: '', act: 'label' as 'label' | 'forward', label: '', forward: '', skip: false },
   forwardTo: [] as string[],         // adressen waar Gmail naar mag doorsturen (in Gmail bevestigd)
   addingMap: false,
-  keys: false,                       // overzicht van sneltoetsen in het menu
-  images: new Set<string>(),         // berichten waarvan externe afbeeldingen getoond mogen worden
+  replying: null as string | null,   // thread waarvan het schrijfvenster open staat
+  cid: new Map<string, Record<string, string>>(),  // afbeeldingen in de mail zelf (cid:) als data-URL, per bericht
   quotes: new Set<string>(),         // berichten waarvan het citaat getoond wordt
   vacation: null as Vacation | null,  // afwezigheidsmelding zoals in Gmail
   scheduled: [] as Scheduled[],      // ingeplande berichten (server)
@@ -160,8 +162,7 @@ async function loadList() {
   if (!S.account) return;
   const account = S.account, key = JSON.stringify(query());
   if (S.view === TODO && !S.q && !todoLabel()) { S.threads = []; S.listState = 'ready'; render(); return; }
-  if (S.view === RULES && !S.q) { S.threads = []; S.listState = 'ready'; await loadRules(); return; }
-  if (S.view === SETTINGS && !S.q) { S.threads = []; S.listState = 'ready'; render(); return; }
+  if (S.view === SETTINGS && !S.q) { S.threads = []; S.listState = 'ready'; await loadRules(); return; }
   if (S.view === SCHEDULED && !S.q) { await loadScheduled(); return; }
   if (S.view === REMIND && !S.q) {
     S.threads = R.forAccount(account).map((r) => ({
@@ -194,7 +195,7 @@ async function loadCounts(force = false) {
   const account = S.account;
   countsBusy = true;
   try {
-    const counts = await labelCounts(account, [INBOX, 'STARRED', 'DRAFT', 'SPAM', ...folders().map((l) => l.id)], [INBOX]);
+    const counts = await labelCounts(account, [INBOX, 'STARRED', 'DRAFT', 'SPAM'], [INBOX]);
     if (S.account !== account) return;
     countsAt = Date.now();
     // Alleen het menu opnieuw tekenen, en alleen als er een aantal veranderd is. Alles opnieuw tekenen
@@ -238,7 +239,7 @@ async function loadMeta() {
 async function openThread(id: string) {
   if (!S.account) return;
   const account = S.account;
-  S.open = id; S.thread = null; S.threadState = 'loading'; S.exp = new Set(); S.error = ''; S.menu = null; S.compose = null;
+  S.open = id; S.thread = null; S.threadState = 'loading'; S.exp = new Set(); S.error = ''; S.menu = null; S.compose = null; S.replying = null; S.addingMap = false;
   try { history.replaceState(null, '', '#mail-' + encodeURIComponent(id)); } catch { /* geen history */ }
   pane('read'); render(); $('#read').scrollTop = 0;
   try {
@@ -277,6 +278,7 @@ function closeThread() {
 
 /** Andere lijst tonen (map, systeemweergave of zoekresultaten). */
 function showList(view: string, q = '') {
+  if (view === RULES) view = SETTINGS;  // regels staan sinds 2026-11-23 onder Instellingen
   Object.assign(S, { view, q, qInput: q, threads: [], sel: null, compose: null, menu: null });
   closeThread();
   loadList();
@@ -321,28 +323,22 @@ function navHTML() {
     ${gmail ? `<button class="btn pri block" data-a="compose">Nieuwe e-mail</button>` : ''}
     ${vacationOn() ? `<button class="ooo" data-a="view" data-v="${SETTINGS}">Afwezigheidsmelding staat aan${S.vacation?.endTime ? ` tot ${new Date(Number(S.vacation.endTime)).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}` : ''}</button>` : ''}
     <div class="navlist">${row(INBOX, SYSTEM[INBOX], S.counts[INBOX], 'ongelezen')}${gmail ? row('STARRED', SYSTEM.STARRED, S.counts.STARRED) + row(REMIND, SYSTEM[REMIND], remCount) : ''}</div>
-    ${gmail ? `<div><div class="label">Mappen</div><div class="navlist">
-      ${folders().map((l) => row(l.id, l.name, S.counts[l.id])).join('')}
-      ${S.addingMap
-        ? '<form id="mapform" class="mapform"><input class="field" id="newmap" type="text" placeholder="Naam van de map" aria-label="Naam van de map"><button class="btn">OK</button></form>'
-        : '<button class="quiet" data-a="addmap">+ Map</button>'}
-    </div></div>
-    <div class="navlist">${row('DRAFT', SYSTEM.DRAFT, S.counts.DRAFT)}${row('SENT')}${S.more ? row('ALL') + row('SPAM', SYSTEM.SPAM, S.counts.SPAM) + row('TRASH') : '<button class="quiet" data-a="more">Meer</button>'}</div>
-    <div class="navlist">${row(RULES)}${row(SETTINGS)}</div>` : ''}
+    ${gmail ? `<div class="navlist">${row('DRAFT', SYSTEM.DRAFT, S.counts.DRAFT)}${row('SENT')}${S.more ? row('ALL') + row('SPAM', SYSTEM.SPAM, S.counts.SPAM) + row('TRASH') : '<button class="quiet" data-a="more">Meer</button>'}</div>
+    <div class="navlist">${row(SETTINGS)}</div>` : ''}
     <div><div class="label">Account</div><div class="navlist">
       <div class="acc"><span class="prov" title="${esc(S.account ?? '')}">${esc(S.account ?? '')}</span>
         <button class="quiet" data-a="settings">Koppeling in Instellingen</button></div>
     </div></div>
-    ${gmail ? `<div class="navkeys"><button class="quiet" data-a="keys">${S.keys ? 'Verberg sneltoetsen' : 'Sneltoetsen'}</button>
-      ${S.keys ? `<dl class="keys">${SHORTCUTS.map(([k, v]) => `<dt><kbd>${esc(k)}</kbd></dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}</div>` : ''}`;
+`;
 }
 
-function itemHTML(t: ThreadSummary) {
+function itemHTML(t: ThreadSummary, tasks: Map<string, string>) {
   const rem = S.account ? R.get(S.account, t.id) : undefined;
   const chips = [
     rem?.fired ? '<span class="chip w">Herinnering</span>' : '',
     rem && !rem.fired && S.view !== REMIND ? `<span class="chip">Herinnering: ${esc(R.fmt(rem.at))}</span>` : '',
-    t.saved && S.view !== 'STARRED' ? '<span class="chip a">Opgeslagen</span>' : '',
+    tasks.has(t.id) ? `<span class="chip t" title="${esc(`Taak: ${tasks.get(t.id)}`)}">Taak</span>` : '',
+    t.saved && S.view !== 'STARRED' ? '<span class="chip s">Opgeslagen</span>' : '',
     t.labels.includes(todoLabel() ?? '') && S.view !== TODO ? '<span class="chip w">Todo</span>' : '',
     t.draft && S.view !== 'DRAFT' ? '<span class="chip">Concept</span>' : '',
     ...t.labels.filter((l) => l !== S.view && l !== todoLabel()).map((l) => `<span class="chip">${esc(labelName(l))}</span>`),
@@ -378,13 +374,18 @@ const vacationOn = () => !!S.vacation?.enableAutoReply && (!S.vacation.endTime |
 
 const dateInput = (ms?: string) => ms ? new Date(Number(ms)).toLocaleDateString('sv-SE') : '';  // yyyy-mm-dd
 
+/** Instellingen van de mail: afwezigheidsmelding, regels en sneltoetsen op één scherm. */
 function settingsHTML() {
   const top = `<div class="top"><button class="icon" data-a="pane" data-v="nav" aria-label="Menu">${ICON.back}</button></div>`;
+  return `<div class="doc">${top}<h2>Instellingen</h2>${vacationHTML()}${rulesHTML()}
+    <section class="set" id="keys"><h3>Sneltoetsen</h3>
+      <dl class="keys">${SHORTCUTS.map(([k, v]) => `<dt><kbd>${esc(k)}</kbd></dt><dd>${esc(v)}</dd>`).join('')}</dl></section></div>`;
+}
+
+function vacationHTML() {
   const v = S.vacation, domain = S.account?.split('@')[1] ?? '';
-  if (!v) return `<div class="doc">${top}<h2>Instellingen</h2><p class="hint">Instellingen ophalen…</p></div>`;
-  return `<div class="doc">${top}
-    <h2>Instellingen</h2>
-    <form class="set" id="vacform">
+  if (!v) return '<section class="set"><h3>Afwezigheidsmelding</h3><p class="hint">Ophalen…</p></section>';
+  return `<form class="set" id="vacform">
       <h3>Afwezigheidsmelding</h3>
       <p class="hint">Dit is de afwezigheidsmelding van Gmail zelf: hij werkt ook als de app dicht is, en Gmail stuurt elke afzender hooguit eens per vier dagen een antwoord.</p>
       <label class="check"><input type="checkbox" id="v-on" ${v.enableAutoReply ? 'checked' : ''}> Afwezigheidsmelding aan</label>
@@ -395,7 +396,7 @@ function settingsHTML() {
       ${domain ? `<label class="check"><input type="checkbox" id="v-domain" ${v.restrictToDomain ? 'checked' : ''}> Alleen naar mensen binnen ${esc(domain)}</label>` : ''}
       <label class="check"><input type="checkbox" id="v-contacts" ${v.restrictToContacts ? 'checked' : ''}> Alleen naar mijn contacten</label>
       <div><button class="btn pri">Bewaar</button></div>
-    </form></div>`;
+    </form>`;
 }
 
 async function saveVacation() {
@@ -448,7 +449,6 @@ function draftRule(): RuleSpec {
 }
 
 function rulesHTML() {
-  const top = `<div class="top"><button class="icon" data-a="pane" data-v="nav" aria-label="Menu">${ICON.back}</button></div>`;
   const d = S.ruleDraft, maps = folders(), fwd = d.act === 'forward' || !maps.length;
   const picked = new Set(parseAddresses(d.forward).map((a) => a.toLowerCase()));
   const opts = maps.map((l) => `<option value="${esc(l.id)}"${l.id === d.label ? ' selected' : ''}>${esc(l.name)}</option>`).join('');
@@ -457,10 +457,11 @@ function rulesHTML() {
     : groupRules(S.rules).map((r: RuleRow) => r.simple
       ? `<div class="rule"><span>${ruleLine(r.simple, r.forwards)}</span>
           <button class="btn ghost" data-a="delrule" data-v="${esc(r.ids.join(','))}">Verwijder</button></div>`
+      : r.summary.includes(ACCEPTED_QUERY) ? '<div class="rule other"><span>Meeting geaccepteerd (Geaccepteerd / Accepted) → gelezen en naar de prullenbak</span><span class="hint">Vaste regel van de app</span></div>'
       : `<div class="rule other"><span>Andere Gmail-regel: ${esc(r.summary.replace(/Label_\w+/g, (id) => labelName(id)))}</span><span class="hint">Beheer in Gmail</span></div>`).join('')
       || '<p class="hint">Nog geen regels.</p>';
-  return `<div class="doc">${top}
-    <h2>Regels</h2>
+  return `<section class="set" id="rules">
+    <h3>Regels</h3>
     <p class="hint">Nieuwe mail die past gaat naar een map of wordt doorgestuurd, ook als de app dicht is (het zijn Gmail-filters). Vul één of meer voorwaarden in; alles wat je invult moet kloppen. Bestaande mail verandert niet.</p>
     <form class="ruleform" id="ruleform" novalidate>
       <label for="r-from">Als afzender bevat</label>
@@ -487,7 +488,7 @@ function rulesHTML() {
     </form>
     ${S.error ? `<p class="error" role="alert">${esc(S.error)}</p>` : ''}
     ${fwd ? `<p class="hint">Meer ontvangers kan: klik ze aan of zet een komma tussen de adressen. Gmail stuurt alleen door naar adressen die je in Gmail hebt toegevoegd en die de ontvanger heeft bevestigd. Een nieuw adres voeg je één keer toe in <a class="link" href="https://mail.google.com/mail/u/0/#settings/fwdandpop" target="_blank" rel="noopener">Gmail › Doorsturen</a>.</p>` : ''}
-    <div>${rows}</div></div>`;
+    <div>${rows}</div></section>`;
 }
 
 function listHTML() {
@@ -496,7 +497,7 @@ function listHTML() {
   else if (S.listState === 'loading' && !S.threads.length) rows = `<div class="none">${S.q ? 'Zoeken…' : 'Mail ophalen…'}</div>`;
   else if (S.listState === 'error') rows = `<div class="none">Deze lijst kon niet laden.<br><button class="link" data-a="reload">Probeer opnieuw</button></div>`;
   else if (S.view === SCHEDULED && !S.q) rows = scheduledHTML();
-  else rows = S.threads.map(itemHTML).join('') || `<div class="none">${S.q ? 'Niets gevonden.' : inNewView() && S.unreadOnly ? 'Geen ongelezen mail.' : EMPTY[S.view] ?? 'Deze map is leeg.'}</div>`;
+  else { const tasks = hooks.tasks(); rows = S.threads.map((t) => itemHTML(t, tasks)).join('') || `<div class="none">${S.q ? 'Niets gevonden.' : inNewView() && S.unreadOnly ? 'Geen ongelezen mail.' : EMPTY[S.view] ?? 'Deze map is leeg.'}</div>`; }
   const gmail = gmailAccount();
   return `<div class="head"><div class="hrow">
       <button class="icon mob" data-a="pane" data-v="nav" aria-label="Menu">${ICON.menu}</button>
@@ -516,7 +517,6 @@ function listHTML() {
 
 /* ---------- HTML-mails: afgeschermd kader, geen scripts, externe afbeeldingen pas na klik ---------- */
 
-const REMOTE_IMG = /<img[^>]+src\s*=\s*["']?https?:/i;
 const QUOTE = /gmail_quote|<blockquote|divRplyFwdMsg|yahoo_quoted/i;
 
 function mailDoc(html: string, images: boolean, quote: boolean) {
@@ -531,14 +531,46 @@ ${quote ? '' : '.gmail_quote,blockquote[type=cite],.yahoo_quoted,#divRplyFwdMsg,
 </style></head><body>${html}</body></html>`;
 }
 
+/** HTML met de afbeeldingen uit de mail zelf (cid:) ingevuld, zodra die opgehaald zijn. */
+function withInline(m: Thread['messages'][number]) {
+  const map = S.cid.get(m.id);
+  if (!map) return m.html!;
+  return m.html!.replace(/cid:([^"'\s)>]+)/gi, (all, c: string) => map[c] ?? map[decodeURIComponent(c)] ?? all);
+}
+
+/** Afbeeldingen in de mail zelf ophalen en het kader bijwerken (zonder de rest opnieuw te tekenen). */
+const cidBusy = new Set<string>();
+async function loadInline(m: Thread['messages'][number]) {
+  const account = S.account;
+  if (!account || !m.inline?.length || S.cid.has(m.id) || cidBusy.has(m.id)) return;
+  cidBusy.add(m.id);
+  const map: Record<string, string> = {};
+  await Promise.all(m.inline.map(async (p) => {
+    try {
+      let b64 = p.data?.replace(/-/g, '+').replace(/_/g, '/') ?? '';
+      if (!b64 && p.id) {
+        const bytes = await getAttachment(account, m.id, p.id);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        b64 = btoa(bin);
+      }
+      if (b64) map[p.cid] = `data:${p.mime};base64,${b64}`;
+    } catch { /* deze afbeelding niet; de rest wel */ }
+  }));
+  cidBusy.delete(m.id);
+  S.cid.set(m.id, map);
+  const f = root.querySelector<HTMLIFrameElement>(`iframe[data-m="${CSS.escape(m.id)}"]`);
+  if (f) f.srcdoc = mailDoc(withInline(m), true, S.quotes.has(m.id));
+}
+
 function bodyHTML(m: Thread['messages'][number]) {
   if (!m.html) return `<div class="body">${esc(m.body || m.snippet)}</div>`;
-  const images = S.images.has(m.id), quote = S.quotes.has(m.id);
+  const quote = S.quotes.has(m.id);
+  if (/cid:/i.test(m.html)) void loadInline(m);
   const opts = [
-    REMOTE_IMG.test(m.html) && !images ? `<button class="link" data-a="images" data-v="${esc(m.id)}">Afbeeldingen tonen</button>` : '',
     QUOTE.test(m.html) ? `<button class="link" data-a="quote" data-v="${esc(m.id)}">${quote ? 'Citaat verbergen' : 'Citaat tonen'}</button>` : '',
   ].filter(Boolean).join(' · ');
-  return `<iframe class="mailhtml" title="E-mail" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcdoc="${esc(mailDoc(m.html, images, quote))}"></iframe>
+  return `<iframe class="mailhtml" data-m="${esc(m.id)}" title="E-mail" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcdoc="${esc(mailDoc(withInline(m), true, quote))}"></iframe>
     ${opts ? `<div class="mailopts">${opts}</div>` : ''}`;
 }
 
@@ -599,15 +631,20 @@ async function downloadAttachment(v: string) {
   } catch (e) { fail(e); render(); }
 }
 
+const MODES: [Exclude<Mode, 'new'>, string][] = [['reply', 'Beantwoord'], ['all', 'Allen beantwoorden'], ['fwd', 'Stuur door']];
+/** Adresveld: loopt door naar de volgende regel in plaats van opzij te scrollen. */
+const addr = (id: string, v: string, ph = '') =>
+  `<textarea id="${id}" class="addr" rows="1" ${ph ? `placeholder="${ph}"` : ''} autocomplete="off" spellcheck="false">${esc(v)}</textarea>`;
+
+/** Is het schrijfvenster van deze thread in beeld? Ja als je op Beantwoord klikte, of als er al iets in staat. */
+const replyOpen = (t: Thread, d: Draft) => S.replying === t.id || !!d.body.trim() || !!d.gmailDraftId || !!d.att?.length;
+
 function composerHTML(d: Draft) {
-  const tabs = d.threadId
-    ? `<div class="modes">${([['reply', 'Beantwoord'], ['all', 'Allen beantwoorden'], ['fwd', 'Stuur door']] as [Mode, string][])
-        .map(([m, l]) => `<button class="tab ${d.mode === m ? 'on' : ''}" data-a="mode" data-v="${m}">${l}</button>`).join('')}</div>`
-    : '';
-  return `<div class="reply">${tabs}
-    <div class="frow"><label for="c-to">Aan</label><input id="c-to" type="text" value="${esc(d.to)}" placeholder="e-mailadres, gescheiden door komma's" autocomplete="off">${d.showCc ? '' : '<button class="link" data-a="cc">Cc/Bcc</button>'}</div>
-    ${d.showCc ? `<div class="frow"><label for="c-cc">Cc</label><input id="c-cc" type="text" value="${esc(d.cc)}" autocomplete="off"></div>
-      <div class="frow"><label for="c-bcc">Bcc</label><input id="c-bcc" type="text" value="${esc(d.bcc)}" autocomplete="off"></div>` : ''}
+  const blank = !!d.threadId && !d.body.trim() && !d.gmailDraftId && !d.att?.length;
+  return `<div class="reply">
+    <div class="frow"><label for="c-to">Aan</label>${addr('c-to', d.to, "e-mailadres, gescheiden door komma's")}${d.showCc ? '' : '<button class="link" data-a="cc">Cc/Bcc</button>'}</div>
+    ${d.showCc ? `<div class="frow"><label for="c-cc">Cc</label>${addr('c-cc', d.cc)}</div>
+      <div class="frow"><label for="c-bcc">Bcc</label>${addr('c-bcc', d.bcc)}</div>` : ''}
     ${d.threadId ? '' : `<div class="frow"><label for="c-subject">Onderwerp</label><input id="c-subject" type="text" value="${esc(d.subject)}"></div>`}
     <textarea id="c-body" placeholder="Schrijf je bericht…" aria-label="Bericht">${esc(d.body)}</textarea>
     ${S.sig.text ? `<div class="sig">${esc(S.sig.text)}</div>` : ''}
@@ -621,9 +658,9 @@ function composerHTML(d: Draft) {
         <option value="custom" ${d.rem === 'custom' ? 'selected' : ''}>Eigen tijdstip…</option></select>
       ${d.rem === 'custom' ? `<input type="datetime-local" id="c-remat" value="${esc(d.remAt)}" aria-label="Tijdstip herinnering">` : ''}
       <label class="btn">Bijlage<input type="file" id="c-file" multiple hidden></label>
-      <span class="sp"></span><span class="cstatus" id="c-status">${d.savedAt ? `Bewaard in Gmail ${when(d.savedAt)}` : ''}</span>
-      ${d.gmailDraftId ? '<button class="btn" data-a="dropdraft">Gooi concept weg</button>' : d.threadId ? '' : '<button class="btn" data-a="discard">Gooi weg</button>'}
-      <button class="btn pri" data-a="send">Verstuur</button></div>
+      <span class="end"><span class="cstatus" id="c-status">${d.savedAt ? `Bewaard in Gmail ${when(d.savedAt)}` : ''}</span>
+      ${d.gmailDraftId ? '<button class="btn" data-a="dropdraft">Gooi concept weg</button>' : blank ? '<button class="btn" data-a="closereply">Sluit</button>' : d.threadId ? '' : '<button class="btn" data-a="discard">Gooi weg</button>'}
+      <button class="btn pri" data-a="send">Verstuur</button></span></div>
     ${S.planOpen ? `<div class="plan"><span>Verstuur op:</span>
       ${planPresets().map((p) => `<button class="btn" data-a="planat" data-v="${p.at}">${p.label}</button>`).join('')}
       <input type="datetime-local" id="c-planat" aria-label="Eigen verzendtijd"><button class="btn" data-a="planat">Plan in</button></div>` : ''}</div>`;
@@ -640,9 +677,12 @@ function barHTML(t: Thread) {
   if (t.inSpam) return '<div class="bar"><button class="btn pri" data-a="unspam">Geen spam</button><button class="btn" data-a="trash">Verwijder</button></div>';
   const maps = t.labels.filter((l) => l !== todoLabel()).map(labelName);
   const rem = R.get(S.account!, t.id);
+  const d = S.drafts.get(t.id), mode = d && replyOpen(t, d) ? d.mode : null;
   return `<div class="bar">
+      ${MODES.map(([m, l]) => `<button class="btn ${mode === m ? 'on' : ''}" data-a="reply" data-v="${m}">${l}</button>`).join('')}
+      <span class="sep" aria-hidden="true"></span>
       ${t.inInbox ? '<button class="btn pri" data-a="done">Klaar</button>' : '<button class="btn" data-a="tonew">Zet terug in Nieuw</button>'}
-      <button class="btn ${t.saved ? 'on' : ''}" data-a="save" aria-pressed="${t.saved}">${t.saved ? 'Opgeslagen' : 'Opslaan'}</button>
+      <button class="btn save ${t.saved ? 'on' : ''}" data-a="save" aria-pressed="${t.saved}">${t.saved ? 'Opgeslagen' : 'Opslaan'}</button>
       <button class="btn" data-a="task" title="Maak een taak in het werk-OS, met een link naar deze mail">Maak taak</button>
       <button class="btn ${S.menu === 'discuss' ? 'on' : ''}" data-a="menu" data-v="discuss" title="Zet deze mail op een bespreeklijst">Bespreek</button>
       <button class="btn ${rem ? 'on' : ''}" data-a="menu" data-v="remind">${rem ? (rem.fired ? 'Herinnering' : `Herinnering: ${esc(R.fmt(rem.at))}`) : 'Herinner me'}</button>
@@ -654,7 +694,10 @@ function barHTML(t: Thread) {
 function menuHTML(t: Thread) {
   if (S.menu === 'map') return `<div class="menu"><span>Map:</span>
       ${folders().map((l) => `<button class="btn ${t.labels.includes(l.id) ? 'on' : ''}" data-a="label" data-v="${esc(l.id)}">${esc(l.name)}</button>`).join('')
-        || '<span class="hint">Nog geen mappen. Maak er een via “+ Map” in het menu.</span>'}</div>`;
+        || '<span class="hint">Nog geen mappen.</span>'}
+      ${S.addingMap
+        ? '<form id="mapform" class="mapform"><input class="field" id="newmap" type="text" placeholder="Naam van de map" aria-label="Naam van de map"><button class="btn">OK</button></form>'
+        : '<button class="btn ghost" data-a="addmap">+ Nieuwe map</button>'}</div>`;
   if (S.menu === 'ask' && S.ask) return `<div class="menu"><span>Voortaan alle mail van <b>${esc(S.ask.from)}</b> naar ${esc(labelName(S.ask.label))}?</span>
       <button class="btn pri" data-a="mkrule">Maak regel</button><button class="btn" data-a="menu" data-v="ask">Nee</button></div>`;
   if (S.menu === 'remind') {
@@ -699,15 +742,39 @@ function readHTML() {
           ? `<button class="att" data-a="att" data-v="${esc(m.id)}:${ai}" title="Download">${esc(a.name)} · ${kb(a.size)}</button>`
           : `<span class="att">${esc(a.name)} · ${kb(a.size)}</span>`).join('')}</div>` : ''}` : ''}
     </div>`;
-  }).join('');
+  }).reverse().join('');  // nieuwste bovenaan
   const draft = S.drafts.get(t.id);
-  const canReply = gmail && draft && !t.inTrash && !t.inSpam;
+  const canReply = gmail && draft && !t.inTrash && !t.inSpam && replyOpen(t, draft);
   return `<div class="doc">${top}${gmail ? barHTML(t) + menuHTML(t) : ''}
     <div class="titleblock"><h2>${esc(t.subject)}</h2>
       <div class="meta"><span>${n} ${n > 1 ? 'berichten' : 'bericht'} · ${esc(people)}</span>
+        <span id="taskmark">${taskChip(t.id)}</span>
         ${t.inTrash ? '<span class="chip">In de prullenbak</span>' : t.inSpam ? '<span class="chip">Spam</span>' : ''}</div></div>
-    <div class="thread">${msgs}</div>
-    ${canReply ? composerHTML(draft) : ''}</div>`;
+    ${canReply ? composerHTML(draft) : ''}
+    <div class="thread">${msgs}</div></div>`;
+}
+
+function taskChip(id: string) {
+  const title = hooks.tasks().get(id);
+  return title ? `<span class="chip t" title="${esc(`Taak: ${title}`)}">Taak: ${esc(title)}</span>` : '';
+}
+
+/** Adresvelden zo hoog als hun inhoud (voor browsers zonder field-sizing). */
+function fitAddrs() {
+  root.querySelectorAll<HTMLTextAreaElement>('textarea.addr').forEach((el) => { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; });
+}
+
+/** Er is een taak bij gekomen of afgevinkt: alleen de labels bijwerken, niet het schrijfvenster. */
+let taskSig = '';
+export function tasksChanged() {
+  if (!appEl || !S.account || !hooks) return;
+  const sig = [...hooks.tasks().keys()].sort().join(',');
+  if (sig === taskSig) return;
+  taskSig = sig;
+  const list = appEl.querySelector('#list');
+  if (list && !list.contains(root.activeElement)) list.innerHTML = listHTML();
+  const mark = appEl.querySelector('#taskmark');
+  if (mark && S.thread) mark.innerHTML = taskChip(S.thread.id);
 }
 
 /** Cursorpositie in een tekstveld; een e-mailveld geeft die niet prijs. */
@@ -728,6 +795,7 @@ function render() {
   $('#nav').innerHTML = navHTML();
   $('#list').innerHTML = listHTML();
   $('#read').innerHTML = readHTML();
+  fitAddrs();
   if (keep) {
     const el = $(`#${keep.id}`) as HTMLInputElement | null;
     el?.focus();
@@ -1084,12 +1152,13 @@ function sendDraft() {
   clearTimeout(saveTimers.get(d));
   // Concept uit beeld halen; bij ongedaan maken of een fout komt het terug.
   const restore = () => {
-    if (d.threadId) S.drafts.set(d.threadId, d); else { S.compose = d; pane('read'); }
+    if (d.threadId) { S.drafts.set(d.threadId, d); S.replying = d.threadId; } else { S.compose = d; pane('read'); }
     render();
   };
   if (d.threadId && t) S.drafts.set(d.threadId, draftFor(t, 'reply', account));
   else if (d.threadId) S.drafts.delete(d.threadId);
   else S.compose = null;
+  if (d.threadId && S.replying === d.threadId) S.replying = null;
   render();
   let cancelled = false;
   const timer = window.setTimeout(async () => {
@@ -1136,8 +1205,8 @@ const actions: Record<string, (v: string) => unknown> = {
   discussto: (v) => discussTo(v),
   view: (v) => showList(v),
   more: () => { S.more = true; render(); },
-  keys: () => { S.keys = !S.keys; render(); },
-  images: (v) => { S.images.add(v); render(); },
+  reply: (v) => replyMode(v as Exclude<Mode, 'new'>),
+  closereply: () => { S.replying = null; render(); },
   quote: (v) => { if (S.quotes.has(v)) S.quotes.delete(v); else S.quotes.add(v); render(); },
   att: (v) => downloadAttachment(v),
   plan: () => { S.planOpen = !S.planOpen; render(); },
@@ -1155,7 +1224,7 @@ const actions: Record<string, (v: string) => unknown> = {
     try { localStorage.setItem(UNREAD_KEY, S.unreadOnly ? '1' : '0'); } catch { /* alleen voor nu */ }
     S.threads = []; S.sel = null; loadList();
   },
-  addmap: () => { S.addingMap = true; render(); focus('#newmap'); },
+  addmap: () => { S.addingMap = true; S.menu = 'map'; render(); focus('#newmap'); },
   reload: () => { loadList(); loadMeta(); },
   open: (v) => openThread(v),
   exp: (v) => { const i = Number(v); if (S.exp.has(i)) S.exp.delete(i); else S.exp.add(i); render(); },
@@ -1243,6 +1312,9 @@ const actions: Record<string, (v: string) => unknown> = {
 };
 
 const on_click = ((ev: Event) => {
+  // Klik op een datumveld (dd/mm/jjjj): meteen de kalender openen, niet alleen het vakje.
+  const date = (ev.target as Element).closest?.('input[type="datetime-local"], input[type="date"]') as HTMLInputElement | null;
+  if (date) { try { date.showPicker(); } catch { /* oudere browser: gewoon het veld */ } return; }
   const el = (ev.target as Element).closest<HTMLElement>('[data-a]');
   if (!el || (el as HTMLButtonElement).disabled) return;
   actions[el.dataset.a!]?.(el.dataset.v ?? '');
@@ -1252,8 +1324,8 @@ const on_click = ((ev: Event) => {
 
 const SHORTCUTS: [string, string][] = [
   ['E', 'Klaar'], ['R', 'Beantwoorden'], ['A', 'Allen beantwoorden'], ['F', 'Doorsturen'],
-  ['C', 'Nieuwe e-mail'], ['J / K', 'Volgende / vorige thread'], ['/', 'Zoeken'],
-  ['Backspace', 'Verwijderen'], ['Esc', 'Terug / menu sluiten'], ['?', 'Dit overzicht'],
+  ['C', 'Nieuwe e-mail'], ['↓ / J', 'Volgende thread'], ['↑ / K', 'Vorige thread'], ['/', 'Zoeken'],
+  ['Backspace', 'Verwijderen'], ['Esc', 'Terug / menu sluiten'], ['?', 'Dit overzicht (Instellingen)'],
 ];
 
 /** Volgende (+1) of vorige (-1) thread in de lijst openen; zonder open thread de eerste. */
@@ -1269,9 +1341,10 @@ function replyMode(mode: Exclude<Mode, 'new'>) {
   if (!t || !S.account || t.inTrash || t.inSpam) return;
   const next = { ...draftFor(t, mode, S.account, d?.body ?? ''), gmailDraftId: d?.gmailDraftId, att: d?.att };
   S.drafts.set(t.id, next); scheduleSave(next);
+  S.replying = t.id;
   pane('read'); render();
   const field = mode === 'fwd' ? '#c-to' : '#c-body';
-  root.querySelector(field)?.scrollIntoView({ block: 'center' });
+  root.querySelector(field)?.scrollIntoView({ block: 'nearest' });
   focus(field);
 }
 
@@ -1282,6 +1355,8 @@ const on_keydown = ((ev: KeyboardEvent) => {
   if (document.querySelector('[role="dialog"]')) return;
   const target = (ev.composedPath()[0] ?? ev.target) as HTMLElement;
   const typing = !!target.closest?.('input, textarea, select, [contenteditable]');
+  // Adresvelden lopen door over meer regels, maar Enter maakt geen nieuwe regel.
+  if (ev.key === 'Enter' && target.matches?.('textarea.addr')) { ev.preventDefault(); return; }
   if (ev.key === 'Escape') {
     if (typing) target.blur();
     else if (S.menu) { S.menu = null; render(); }
@@ -1311,14 +1386,14 @@ const on_keydown = ((ev: KeyboardEvent) => {
     case 'a': if (!open || S.compose) return; replyMode('all'); break;
     case 'f': if (!open || S.compose) return; replyMode('fwd'); break;
     case 'c': actions.compose(''); break;
-    case 'j': step(1); break;
-    case 'k': step(-1); break;
+    case 'j': case 'ArrowDown': step(1); break;
+    case 'k': case 'ArrowUp': step(-1); break;
     case '/': {
       if (WIDE(S.view)) showList(INBOX);
       pane('list'); render(); focus('#q');
       break;
     }
-    case '?': S.keys = !S.keys; if (narrow()) pane('nav'); render(); break;
+    case '?': showList(SETTINGS); pane('read'); render(); root.getElementById('keys')?.scrollIntoView({ block: 'start' }); break;
     default: return;
   }
   ev.preventDefault();
@@ -1344,6 +1419,7 @@ const on_input = ((ev: Event) => {
     }
     return;
   }
+  if (el.classList?.contains('addr')) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
   const key = FIELDS[el.id], d = current();
   if (key && d) { (d as unknown as Record<string, string>)[key] = el.value; if (key !== 'remAt') scheduleSave(d); }
 });
@@ -1400,12 +1476,27 @@ const on_submit = (async (ev: Event) => {
   try {
     const l = await createLabel(account, name);
     S.labels = [...S.labels, l].sort((a, b) => a.name.localeCompare(b.name, 'nl'));
+    S.addingMap = false;
+    if (S.thread) { await toggleLabel(l.id); return; }  // gemaakt vanuit een mail: die mail er meteen in
     toast(`Map ${l.name} gemaakt`);
   } catch (e) { fail(e); }
   S.addingMap = false; render();
 });
 
 /* ---------- start ---------- */
+
+/** Meeting-acceptaties horen niet in Nieuw: vaste Gmail-regel (eenmalig) en wat er nog staat opruimen. */
+async function tidyAccepted() {
+  const account = S.account;
+  if (!account) return;
+  try {
+    await ensureAcceptedRule(account);
+    const n = await cleanAccepted(account);
+    if (!n || S.account !== account) return;
+    toast(n === 1 ? '1 meeting-acceptatie opgeruimd' : `${n} meeting-acceptaties opgeruimd`);
+    if (inNewView()) void loadList();
+  } catch { /* volgende keer opnieuw; de mail zelf werkt gewoon */ }
+}
 
 let started = false;
 
@@ -1419,7 +1510,7 @@ async function start() {
   render();
   const raw = /^#mail-(.+)$/.exec(location.hash)?.[1];
   const fromHash = raw ? decodeURIComponent(raw) : undefined;
-  if (first) loadMeta();
+  if (first) { loadMeta(); void tidyAccepted(); }
   await loadList();
   if (fromHash && !S.needLogin) openThread(fromHash);
   else if (fromHash) { S.open = fromHash; render(); }
