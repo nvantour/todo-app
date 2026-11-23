@@ -170,7 +170,7 @@ async function loadList() {
 }
 
 /**
- * Aantallen achter de mappen in het menu (Nieuw, Opgeslagen, eigen mappen, Concepten, Spam).
+ * Aantallen achter de mappen in het menu: bij Nieuw de ongelezen threads, bij Opgeslagen, eigen mappen, Concepten en Spam alles.
  * Na elke lijst opnieuw, maar hooguit eens per paar seconden: het zijn losse verzoeken per map.
  */
 let countsBusy = false, countsAt = 0;
@@ -179,7 +179,7 @@ async function loadCounts(force = false) {
   const account = S.account;
   countsBusy = true;
   try {
-    const counts = await labelCounts(account, [INBOX, 'STARRED', 'DRAFT', 'SPAM', ...folders().map((l) => l.id)]);
+    const counts = await labelCounts(account, [INBOX, 'STARRED', 'DRAFT', 'SPAM', ...folders().map((l) => l.id)], [INBOX]);
     if (S.account !== account) return;
     S.counts = counts; countsAt = Date.now();
     render();
@@ -289,13 +289,13 @@ function loginHTML() {
 
 function navHTML() {
   const gmail = gmailAccount();
-  const row = (id: string, name = SYSTEM[id], n = 0) =>
-    `<button class="${S.view === id && !S.q ? 'on' : ''}" data-a="view" data-v="${esc(id)}" title="${esc(name)}"><span>${esc(name)}</span>${n ? `<span class="n">${n}</span>` : ''}</button>`;
+  const row = (id: string, name = SYSTEM[id], n = 0, what = '') =>
+    `<button class="${S.view === id && !S.q ? 'on' : ''}" data-a="view" data-v="${esc(id)}" title="${esc(n && what ? `${name}: ${n} ${what}` : name)}"><span>${esc(name)}</span>${n ? `<span class="n">${n}</span>` : ''}</button>`;
   const remCount = S.account ? R.forAccount(S.account).filter((r) => !r.fired).length : 0;
   return `<div class="brand">Mail</div>
     ${gmail ? `<button class="btn pri block" data-a="compose">Nieuwe e-mail</button>` : ''}
     ${vacationOn() ? `<button class="ooo" data-a="view" data-v="${SETTINGS}">Afwezigheidsmelding staat aan${S.vacation?.endTime ? ` tot ${new Date(Number(S.vacation.endTime)).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}` : ''}</button>` : ''}
-    <div class="navlist">${row(INBOX, SYSTEM[INBOX], S.counts[INBOX])}${gmail ? row('STARRED', SYSTEM.STARRED, S.counts.STARRED) + row(REMIND, SYSTEM[REMIND], remCount) : ''}</div>
+    <div class="navlist">${row(INBOX, SYSTEM[INBOX], S.counts[INBOX], 'ongelezen')}${gmail ? row('STARRED', SYSTEM.STARRED, S.counts.STARRED) + row(REMIND, SYSTEM[REMIND], remCount) : ''}</div>
     ${gmail ? `<div><div class="label">Mappen</div><div class="navlist">
       ${folders().map((l) => row(l.id, l.name, S.counts[l.id])).join('')}
       ${S.addingMap
