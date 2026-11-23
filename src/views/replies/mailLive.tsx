@@ -16,7 +16,8 @@ export function MailFrame({ html, title }: { html: string; title: string }) {
     let ro: ResizeObserver | null = null
     const fit = () => {
       const d = f.contentDocument
-      if (d?.documentElement) f.style.height = `${d.documentElement.scrollHeight}px`
+      // Het kader is zo hoog als de mail, tot een maximum (CSS); een langere mail schuift binnen het kader.
+      if (d?.body) f.style.height = `${d.body.scrollHeight}px`
     }
     const onLoad = () => {
       fit()
@@ -36,6 +37,12 @@ export function MailFrame({ html, title }: { html: string; title: string }) {
   }, [html])
   return <iframe ref={ref} className="reply__mailframe" title={title} sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcDoc={html} />
 }
+
+/**
+ * Elk citaatblok telt op de kaart als aangehaalde eerdere mail, ook dat van de app zelf (dat heeft geen
+ * type="cite"). Zo blijft per mail alleen over wat de afzender nieuw schreef; "Citaat tonen" haalt het terug.
+ */
+const markQuotes = (html: string) => html.replace(/<blockquote(?![^>]*\btype=)/gi, '<blockquote type="cite"')
 
 const time = (ms: number) => new Date(ms).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
@@ -61,7 +68,7 @@ function LiveMessage({ m, session }: { m: Message; session: MailSession }) {
       </div>
       {m.html ? (
         <>
-          <MailFrame html={mailDoc(withInline(m.html, inline), true, quote)} title={`E-mail van ${m.me ? 'jou' : m.from}`} />
+          <MailFrame html={mailDoc(markQuotes(withInline(m.html, inline)), true, quote)} title={`E-mail van ${m.me ? 'jou' : m.from}`} />
           {QUOTE.test(m.html) && (
             <button className="reply__more" onClick={() => setQuote((q) => !q)}>
               {quote ? 'Citaat verbergen' : 'Citaat tonen'}
