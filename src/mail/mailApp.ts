@@ -67,6 +67,11 @@ const SETTINGS = 'SETTINGS';  // breed scherm: afwezigheidsmelding
 const SCHEDULED = 'SCHEDULED';  // staat op de server, niet in Gmail
 const WIDE = (v: string) => v === RULES || v === SETTINGS;
 
+const UNREAD_KEY = 'mail:new-unread-only';
+function savedUnreadOnly() {
+  try { return localStorage.getItem(UNREAD_KEY) === '1'; } catch { return false; }
+}
+
 const S = {
   account: null as string | null,
   view: INBOX,                       // sleutel uit SYSTEM of het id van een map
@@ -75,6 +80,7 @@ const S = {
   more: false,                       // Alle mail, Spam en Prullenbak tonen in het menu
   labels: [] as Label[],
   counts: {} as Record<string, number>,  // aantal threads per map in het menu
+  unreadOnly: savedUnreadOnly(),      // bij Nieuw alleen ongelezen threads
   sig: { html: '', text: '' },
   threads: [] as ThreadSummary[],
   listState: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
@@ -115,7 +121,9 @@ const todoLabel = () => S.labels.find((l) => l.name === TODO_NAME)?.id;
 /** Eigen mappen zonder de Todo-map (die heeft een eigen plek in het menu). */
 const folders = () => S.labels.filter((l) => l.name !== TODO_NAME);
 const viewTitle = () => S.q ? 'Zoekresultaten' : SYSTEM[S.view] ?? labelName(S.view);
-const query = (): ListQuery => S.q ? { q: S.q } : S.view === 'ALL' ? {} : { label: S.view === TODO ? todoLabel() : S.view };
+const query = (): ListQuery => S.q ? { q: S.q } : S.view === 'ALL' ? {}
+  : S.view === INBOX && S.unreadOnly ? { label: INBOX, q: 'is:unread' }
+  : { label: S.view === TODO ? todoLabel() : S.view };
 const gmailAccount = () => !!S.account;
 const inNewView = () => S.view === INBOX && !S.q;
 
@@ -430,7 +438,7 @@ function listHTML() {
   else if (S.listState === 'loading' && !S.threads.length) rows = `<div class="none">${S.q ? 'Zoeken…' : 'Mail ophalen…'}</div>`;
   else if (S.listState === 'error') rows = `<div class="none">Deze lijst kon niet laden.<br><button class="link" data-a="reload">Probeer opnieuw</button></div>`;
   else if (S.view === SCHEDULED && !S.q) rows = scheduledHTML();
-  else rows = S.threads.map(itemHTML).join('') || `<div class="none">${S.q ? 'Niets gevonden.' : EMPTY[S.view] ?? 'Deze map is leeg.'}</div>`;
+  else rows = S.threads.map(itemHTML).join('') || `<div class="none">${S.q ? 'Niets gevonden.' : inNewView() && S.unreadOnly ? 'Geen ongelezen mail.' : EMPTY[S.view] ?? 'Deze map is leeg.'}</div>`;
   const gmail = gmailAccount();
   return `<div class="head"><div class="hrow">
       <button class="icon mob" data-a="pane" data-v="nav" aria-label="Menu">${ICON.menu}</button>
@@ -440,6 +448,9 @@ function listHTML() {
       ${gmail ? `<button class="icon mob" data-a="compose" aria-label="Nieuwe e-mail">${ICON.pen}</button>` : ''}</div>
       ${gmail ? `<form id="searchform" role="search"><input class="field" id="q" type="search" placeholder="Zoek in alle mail" value="${esc(S.qInput)}" aria-label="Zoek in alle mail" enterkeyhint="search"></form>
         ${S.q ? '<button class="link clearq" data-a="clearq">Wis zoekopdracht</button>' : ''}` : ''}
+      ${gmail && S.view === INBOX && !S.q ? `<div class="filter" role="group" aria-label="Welke mail">
+        <button class="${S.unreadOnly ? '' : 'on'}" data-a="onlyunread" data-v="0" aria-pressed="${!S.unreadOnly}">Alles</button>
+        <button class="${S.unreadOnly ? 'on' : ''}" data-a="onlyunread" data-v="1" aria-pressed="${S.unreadOnly}">Ongelezen${S.counts[INBOX] ? ` <span class="n">${S.counts[INBOX]}</span>` : ''}</button></div>` : ''}
       ${bulkHTML()}
       ${S.error ? `<p class="error">${esc(S.error)}</p>` : ''}</div>
     <div id="rows">${rows}</div>`;
@@ -1073,6 +1084,11 @@ const actions: Record<string, (v: string) => unknown> = {
   unschedule: (v) => unschedule(v),
   rmatt: (v) => { const d = current(); if (d?.att) { d.att.splice(Number(v), 1); render(); } },
   clearq: () => showList(S.view),
+  onlyunread: (v) => {
+    S.unreadOnly = v === '1';
+    try { localStorage.setItem(UNREAD_KEY, S.unreadOnly ? '1' : '0'); } catch { /* alleen voor nu */ }
+    S.threads = []; S.sel = null; loadList();
+  },
   addmap: () => { S.addingMap = true; render(); focus('#newmap'); },
   reload: () => { loadList(); loadMeta(); },
   open: (v) => openThread(v),

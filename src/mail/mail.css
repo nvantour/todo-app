@@ -236,3 +236,9 @@ button.att:hover{border-color:var(--ink)}
 .plan{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);font-size:13px}
 .plan input{padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font:inherit;color:inherit}
 .item.sched{cursor:default}
+
+/* Nieuw: alles of alleen ongelezen */
+.filter{display:inline-flex;gap:2px;margin-top:8px;padding:2px;border:1px solid var(--line);border-radius:8px}
+.filter button{padding:3px 10px;border-radius:6px;font-size:13px;color:var(--muted)}
+.filter button.on{background:var(--sel);color:var(--ink);font-weight:600}
+.filter .n{margin-left:4px;font-size:12px;font-weight:400;color:var(--muted)}
