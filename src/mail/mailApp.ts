@@ -180,6 +180,9 @@ async function loadList() {
   void loadCounts();
 }
 
+/** Tekst op de knop "Ongelezen" boven de lijst, met het aantal ongelezen threads in Nieuw. */
+const unreadLabel = () => `Ongelezen${S.counts[INBOX] ? ` <span class="n">${S.counts[INBOX]}</span>` : ''}`;
+
 /**
  * Aantallen achter de mappen in het menu: bij Nieuw de ongelezen threads, bij Opgeslagen, eigen mappen, Concepten en Spam alles.
  * Na elke lijst opnieuw, maar hooguit eens per paar seconden: het zijn losse verzoeken per map.
@@ -192,8 +195,16 @@ async function loadCounts(force = false) {
   try {
     const counts = await labelCounts(account, [INBOX, 'STARRED', 'DRAFT', 'SPAM', ...folders().map((l) => l.id)], [INBOX]);
     if (S.account !== account) return;
-    S.counts = counts; countsAt = Date.now();
-    render();
+    countsAt = Date.now();
+    // Alleen het menu opnieuw tekenen, en alleen als er een aantal veranderd is. Alles opnieuw tekenen
+    // haalt de cursor uit het schrijfvenster; wat je daarna typt telt dan als sneltoets (E = Klaar, Backspace = prullenbak).
+    const keys = Object.keys(counts);
+    if (keys.length === Object.keys(S.counts).length && keys.every((k) => S.counts[k] === counts[k])) return;
+    S.counts = counts;
+    const nav = appEl?.querySelector('#nav');
+    if (nav && !S.addingMap) nav.innerHTML = navHTML();
+    const unread = appEl?.querySelector('[data-a="onlyunread"][data-v="1"]');  // de knop boven de lijst telt mee
+    if (unread) unread.innerHTML = unreadLabel();
   } finally { countsBusy = false; }
 }
 
@@ -495,7 +506,7 @@ function listHTML() {
         ${S.q ? '<button class="link clearq" data-a="clearq">Wis zoekopdracht</button>' : ''}` : ''}
       ${gmail && S.view === INBOX && !S.q ? `<div class="filter" role="group" aria-label="Welke mail">
         <button class="${S.unreadOnly ? '' : 'on'}" data-a="onlyunread" data-v="0" aria-pressed="${!S.unreadOnly}">Alles</button>
-        <button class="${S.unreadOnly ? 'on' : ''}" data-a="onlyunread" data-v="1" aria-pressed="${S.unreadOnly}">Ongelezen${S.counts[INBOX] ? ` <span class="n">${S.counts[INBOX]}</span>` : ''}</button></div>` : ''}
+        <button class="${S.unreadOnly ? 'on' : ''}" data-a="onlyunread" data-v="1" aria-pressed="${S.unreadOnly}">${unreadLabel()}</button></div>` : ''}
       ${bulkHTML()}
       ${S.error ? `<p class="error">${esc(S.error)}</p>` : ''}</div>
     <div id="rows">${rows}</div>`;
