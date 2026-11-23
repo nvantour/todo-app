@@ -7,7 +7,7 @@ import './voice.css'
 
 /**
  * De microfoonknop. Komt op twee plekken (zijbalk en dock); de eerste die
- * gemonteerd is, toont de sheet en luistert naar de sneltoets M.
+ * gemonteerd is, toont de sheet en luistert naar de sneltoets Cmd+M (Ctrl+M buiten de Mac).
  */
 export function VoiceButton({ variant }: { variant: 'sidebar' | 'dock' }) {
   const id = useId()
@@ -22,9 +22,9 @@ export function VoiceButton({ variant }: { variant: 'sidebar' | 'dock' }) {
   useEffect(() => {
     if (!isHost) return
     const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null
-      const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)
-      if (e.key.toLowerCase() !== 'm' || typing || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return
+      // Cmd/Ctrl+M, ook tijdens het typen. Een losse M ging af bij het typen (in de mail
+      // is e.target de Shadow DOM-host, dus "typing" werd daar niet herkend).
+      if (e.key.toLowerCase() !== 'm' || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.repeat) return
       e.preventDefault()
       openVoice()
     }

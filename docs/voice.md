@@ -1,6 +1,6 @@
 # Inspreken
 
-Code staat in `src/voice/`. Server: `functions/src/transcribe.ts`. Open de sheet met de knop "Inspreken" (zijbalk, dock) of de toets `M`.
+Code staat in `src/voice/`. Server: `functions/src/transcribe.ts`. Open de sheet met de knop "Inspreken" (zijbalk, dock) of de sneltoets `Cmd+M` (`Ctrl+M` buiten de Mac). Werkt ook terwijl je typt.
 
 ## Aanpak per apparaat
 
@@ -46,4 +46,4 @@ Body = ruwe audio, `Content-Type` = mime-type van de opname (`audio/mp4` of `aud
 
 ## Alleen op een echt toestel te controleren
 
-Gedrag van Web Speech en de microfoontoestemming op iPhone (Safari-tab én beginscherm), echte opnames van Safari door Scribe, kwaliteit van het Nederlands, en de sneltoets `M` naast een schermlezer.
+Gedrag van Web Speech en de microfoontoestemming op iPhone (Safari-tab én beginscherm), echte opnames van Safari door Scribe, kwaliteit van het Nederlands, en de sneltoets `Cmd+M` naast een schermlezer.
