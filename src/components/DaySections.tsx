@@ -11,12 +11,11 @@ interface GroupDef {
   group: DayGroup
   title: string
   placeholder: string
-  addId?: string
   empty: string
 }
 
 const GROUPS: Record<DayGroup, GroupDef> = {
-  today: { group: 'today', title: 'Vandaag', placeholder: 'Iets voor vandaag', addId: 'add-today', empty: 'Sleep hier een taak heen voor vandaag' },
+  today: { group: 'today', title: 'Vandaag', placeholder: 'Iets voor vandaag', empty: 'Sleep hier een taak heen voor vandaag' },
   week: { group: 'week', title: 'Deze week', placeholder: 'Iets voor deze week', empty: 'Sleep hier een taak heen voor later deze week' },
   later: { group: 'later', title: 'Om niet te vergeten', placeholder: 'Iets om niet te vergeten', empty: 'Sleep hier een taak heen om niet te vergeten' },
 }
@@ -27,8 +26,9 @@ const addDefaults = (group: DayGroup, today: string): Partial<NewTodo> =>
 /**
  * Vandaag, Deze week en (op Taken) Om niet te vergeten onder elkaar.
  * Sleep een taak aan het greepje naar een andere groep; op de telefoon kan het via het detail ("Wanneer").
+ * `todayAddId` geeft de lege regel onder "Vandaag" een id (Taken gebruikt dat voor de sneltoets Q).
  */
-export function DaySections({ groups }: { groups: DayGroup[] }) {
+export function DaySections({ groups, todayAddId }: { groups: DayGroup[]; todayAddId?: string }) {
   const data = useAppData()
   const today = todayISO()
   const [over, setOver] = useState<DayGroup | null>(null)
@@ -84,7 +84,7 @@ export function DaySections({ groups }: { groups: DayGroup[] }) {
               <ChecklistItem key={t.id} todo={t} project={project(t.projectId)} draggable />
             ))}
             {dragging && <div className="drop-zone__hint">{def.empty}</div>}
-            <AddLine id={def.addId} defaults={addDefaults(g, today)} placeholder={def.placeholder} />
+            <AddLine id={g === 'today' ? todayAddId : undefined} defaults={addDefaults(g, today)} placeholder={def.placeholder} />
           </section>
         )
       })}

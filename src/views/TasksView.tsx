@@ -78,7 +78,7 @@ export function TasksView() {
         </Link>
       )}
 
-      <DaySections groups={['today', 'week', 'later']} />
+      <DaySections groups={['today', 'week', 'later']} todayAddId="add-now" />
 
       <DoneList />
     </>

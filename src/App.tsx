@@ -79,7 +79,14 @@ function Shell() {
       if (e.key.toLowerCase() !== 'q' || typing || e.metaKey || e.ctrlKey || e.altKey || mail) return
       e.preventDefault()
       navigate('/taken')
-      window.setTimeout(() => document.getElementById('add-now')?.focus(), 0)
+      // Taken staat er niet altijd meteen: wachten tot het veld bestaat (in de bordweergave is het er niet)
+      let tries = 0
+      const focusAdd = () => {
+        const field = document.getElementById('add-now')
+        if (field) field.focus()
+        else if (++tries < 30) requestAnimationFrame(focusAdd)
+      }
+      focusAdd()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
