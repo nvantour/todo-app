@@ -10,8 +10,9 @@ import { draftFor, emptyDraft, outgoing, stripQuote, type Draft, type Mode } fro
 import {
   MAX_SEND_BYTES, getVacation, setVacation, createDraft, createLabel, deleteDraft, getAttachment, updateDraft, getSignature, getThread, listLabels,
   inInbox, labelCounts, listThreads, LoginNeeded, markRead, markUnread, send, setInInbox, setLabel,
-  setSaved, setSpam, setTrash, createRule, deleteRule, listForwardAddresses, listRules, ruleProblem,
-  type GmailDraft, type OutgoingFile, type Vacation, type Label, type ListQuery, type Outgoing, type Rule, type RuleSpec, type Thread, type ThreadSummary,
+  setSaved, setSpam, setTrash, createRule, createRules, deleteRule, groupRules, listForwardAddresses, listRules, parseAddresses, ruleProblem,
+  sameRule, splitForward, toggleAddress,
+  type GmailDraft, type OutgoingFile, type Vacation, type Label, type ListQuery, type Outgoing, type Rule, type RuleRow, type RuleSpec, type Thread, type ThreadSummary,
 } from './mail';
 import * as R from './reminders';
 
@@ -423,7 +424,7 @@ async function saveVacation() {
 }
 
 /** Eén regel als zin: "Afzender bevat X en onderwerp bevat Y → Map · stuur door naar adres". */
-function ruleLine(r: RuleSpec) {
+function ruleLine(r: RuleSpec, forwards: string[] = r.forward ? [r.forward] : []) {
   const when = [
     r.from && `afzender bevat <b>${esc(r.from)}</b>`,
     r.subject && `onderwerp bevat <b>${esc(r.subject)}</b>`,
@@ -431,7 +432,7 @@ function ruleLine(r: RuleSpec) {
   ].filter(Boolean).join(' en ');
   const then = [
     r.label && `<b>${esc(labelName(r.label))}</b>`,
-    r.forward && `stuur door naar <b>${esc(r.forward)}</b>`,
+    forwards.length && `stuur door naar ${forwards.map((a) => `<b>${esc(a)}</b>`).join(', ')}`,
     r.skipInbox && 'niet in Nieuw',
   ].filter(Boolean).join(' · ');
   return `${when.charAt(0).toUpperCase()}${when.slice(1)} → ${then}`;
@@ -449,12 +450,13 @@ function draftRule(): RuleSpec {
 function rulesHTML() {
   const top = `<div class="top"><button class="icon" data-a="pane" data-v="nav" aria-label="Menu">${ICON.back}</button></div>`;
   const d = S.ruleDraft, maps = folders(), fwd = d.act === 'forward' || !maps.length;
+  const picked = new Set(parseAddresses(d.forward).map((a) => a.toLowerCase()));
   const opts = maps.map((l) => `<option value="${esc(l.id)}"${l.id === d.label ? ' selected' : ''}>${esc(l.name)}</option>`).join('');
   const rows = S.rulesState === 'loading' && !S.rules.length ? '<p class="hint">Regels ophalen…</p>'
     : S.rulesState === 'error' ? '<p class="hint">De regels konden niet laden. <button class="link" data-a="reload">Probeer opnieuw</button></p>'
-    : S.rules.map((r) => r.simple
-      ? `<div class="rule"><span>${ruleLine(r.simple)}</span>
-          <button class="btn ghost" data-a="delrule" data-v="${esc(r.id)}">Verwijder</button></div>`
+    : groupRules(S.rules).map((r: RuleRow) => r.simple
+      ? `<div class="rule"><span>${ruleLine(r.simple, r.forwards)}</span>
+          <button class="btn ghost" data-a="delrule" data-v="${esc(r.ids.join(','))}">Verwijder</button></div>`
       : `<div class="rule other"><span>Andere Gmail-regel: ${esc(r.summary.replace(/Label_\w+/g, (id) => labelName(id)))}</span><span class="hint">Beheer in Gmail</span></div>`).join('')
       || '<p class="hint">Nog geen regels.</p>';
   return `<div class="doc">${top}
@@ -474,9 +476,9 @@ function rulesHTML() {
           <option value="forward"${fwd ? ' selected' : ''}>stuur door naar</option>
         </select>
         ${fwd
-          ? `<input type="email" id="r-forward" value="${esc(d.forward)}" placeholder="naam@bedrijf.nl" list="r-fwdlist" aria-label="Doorsturen naar" autocomplete="off">
-             <datalist id="r-fwdlist">${S.forwardTo.map((a) => `<option value="${esc(a)}"></option>`).join('')}</datalist>`
+          ? `<input type="text" id="r-forward" value="${esc(d.forward)}" placeholder="naam@bedrijf.nl, collega@bedrijf.nl" aria-label="Doorsturen naar (meerdere adressen met een komma ertussen)" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">`
           : `<select id="r-label" aria-label="Map">${opts}</select>`}
+        ${fwd && S.forwardTo.length ? `<div class="addrs" role="group" aria-label="Bevestigde adressen">${S.forwardTo.map((a) => `<button type="button" class="btn ${picked.has(a.toLowerCase()) ? 'on' : ''}" data-a="fwdpick" data-v="${esc(a)}" title="${esc(a)}" aria-pressed="${picked.has(a.toLowerCase())}">${esc(a)}</button>`).join('')}</div>` : ''}
       </div>
       <div class="end">
         <label><input type="checkbox" id="r-skip"${d.skip ? ' checked' : ''}> niet in Nieuw</label>
@@ -484,7 +486,7 @@ function rulesHTML() {
       </div>
     </form>
     ${S.error ? `<p class="error" role="alert">${esc(S.error)}</p>` : ''}
-    ${fwd ? `<p class="hint">Gmail stuurt alleen door naar adressen die je in Gmail hebt toegevoegd en die de ontvanger heeft bevestigd${S.forwardTo.length ? ` (nu: ${S.forwardTo.map(esc).join(', ')})` : ''}. Een nieuw adres voeg je één keer toe in <a class="link" href="https://mail.google.com/mail/u/0/#settings/fwdandpop" target="_blank" rel="noopener">Gmail › Doorsturen</a>.</p>` : ''}
+    ${fwd ? `<p class="hint">Meer ontvangers kan: klik ze aan of zet een komma tussen de adressen. Gmail stuurt alleen door naar adressen die je in Gmail hebt toegevoegd en die de ontvanger heeft bevestigd. Een nieuw adres voeg je één keer toe in <a class="link" href="https://mail.google.com/mail/u/0/#settings/fwdandpop" target="_blank" rel="noopener">Gmail › Doorsturen</a>.</p>` : ''}
     <div>${rows}</div></div>`;
 }
 
@@ -1181,18 +1183,21 @@ const actions: Record<string, (v: string) => unknown> = {
     S.ask = null; S.menu = null; render();
   },
   delrule: async (v) => {
-    const r = S.rules.find((x) => x.id === v), account = S.account;
-    if (!r?.simple || !account) return;  // filters die de app niet kan beschrijven laat hij met rust
-    const spec = r.simple;
+    // Een rij kan meer Gmail-filters zijn (één per doorstuuradres); filters die de app niet kan beschrijven laat hij met rust.
+    const ids = v.split(','), rules = S.rules.filter((x) => ids.includes(x.id)), account = S.account;
+    if (!account || !rules.length || rules.some((r) => !r.simple)) return;
     S.error = '';
-    try { await deleteRule(account, v); } catch (e) { fail(e); render(); return; }
-    S.rules = S.rules.filter((x) => x.id !== v);
+    const gone: Rule[] = [];
+    try { for (const r of rules) { await deleteRule(account, r.id); gone.push(r); } } catch (e) { fail(e); }
+    if (!gone.length) { render(); return; }
+    S.rules = S.rules.filter((x) => !gone.includes(x));
     toast('Regel verwijderd', async () => {
-      try { const back = await createRule(account, spec); S.rules = [...S.rules, back]; } catch (e) { fail(e); }
+      for (const r of gone) { try { S.rules = [...S.rules, await createRule(account, r.simple!)]; } catch (e) { fail(e); } }
       render();
     });
     render();
   },
+  fwdpick: (v) => { S.ruleDraft.forward = toggleAddress(S.ruleDraft.forward, v); render(); },
   remind: (v) => { if (S.thread) remindThread(S.thread, Number(v)); },
   remindat: () => {
     const v = ($('#remat') as HTMLInputElement | null)?.value, at = v ? new Date(v).getTime() : NaN;
@@ -1328,7 +1333,17 @@ const on_input = ((ev: Event) => {
   if (el.id === 'q') { S.qInput = el.value; if (!el.value && S.q) showList(S.view); return; }
   // Typen in het regelformulier: alleen onthouden, niet opnieuw tekenen.
   const rule = RULE_FIELDS[el.id];
-  if (rule) { S.ruleDraft[rule] = el.value; return; }
+  if (rule) {
+    S.ruleDraft[rule] = el.value;
+    if (rule === 'forward') {  // de knoppen met bevestigde adressen lopen mee met wat er getypt wordt
+      const picked = new Set(parseAddresses(el.value).map((a) => a.toLowerCase()));
+      root.querySelectorAll<HTMLElement>('[data-a="fwdpick"]').forEach((b) => {
+        const on = picked.has((b.dataset.v ?? '').toLowerCase());
+        b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+      });
+    }
+    return;
+  }
   const key = FIELDS[el.id], d = current();
   if (key && d) { (d as unknown as Record<string, string>)[key] = el.value; if (key !== 'remAt') scheduleSave(d); }
 });
@@ -1358,15 +1373,22 @@ const on_submit = (async (ev: Event) => {
     const account = S.account, spec = draftRule(), problem = ruleProblem(spec);
     if (!account) return;
     if (problem) { toast(problem.message); focus(`#r-${problem.field}`); return; }
+    // Eén Gmail-filter per doorstuuradres; wat er al precies zo staat slaan we over.
+    const parts = splitForward(spec).filter((part) => !S.rules.some((r) => r.simple && sameRule(r.simple, part)));
+    if (!parts.length) { toast('Deze regel bestaat al'); return; }
     if (ruleBusy) return;  // dubbelklik: niet twee keer dezelfde regel maken
     ruleBusy = true; S.error = '';
     try {
-      const r = await createRule(account, spec);
-      S.rules = [...S.rules, r];
+      const made = await createRules(account, parts);
+      S.rules = [...S.rules, ...made];
       S.ruleDraft = { ...S.ruleDraft, from: '', subject: '', body: '', forward: '', skip: false };
-      toast(spec.forward ? `Regel toegevoegd: nieuwe mail die past gaat door naar ${spec.forward}` : 'Regel toegevoegd');
+      toast(spec.forward !== undefined ? `Regel toegevoegd: nieuwe mail die past gaat door naar ${parts.map((x) => x.forward).join(', ')}` : 'Regel toegevoegd');
     }
-    catch (e) { fail(e); }
+    catch (e) {
+      fail(e);
+      // Bij meer adressen kan er al een filter gemaakt en weer weggehaald zijn: de lijst opnieuw uit Gmail halen.
+      if (parts.length > 1) try { S.rules = await listRules(account); } catch { /* de foutmelding hierboven is genoeg */ }
+    }
     finally { ruleBusy = false; }
     render();
     return;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ruleProblem, toFilter, toRule, type RuleSpec } from './rules'
+import { groupRules, parseAddresses, ruleProblem, sameRule, splitForward, toFilter, toRule, toggleAddress, type RuleSpec } from './rules'
 
 describe('toFilter', () => {
   it('zet afzender, onderwerp en bericht om in Gmail-voorwaarden en stuurt door', () => {
@@ -69,5 +69,61 @@ describe('ruleProblem', () => {
   it('keurt een volledige regel goed', () => {
     expect(ruleProblem({ body: 'factuur', forward: 'c@d.nl', skipInbox: false })).toBeNull()
     expect(ruleProblem({ subject: 'x', label: 'Label_1', skipInbox: true })).toBeNull()
+  })
+})
+
+describe('meerdere doorstuuradressen', () => {
+  it('leest adressen gescheiden door komma, puntkomma of spatie en haalt dubbele eruit', () => {
+    expect(parseAddresses(' a@x.nl, b@y.nl;c@z.nl  A@X.nl ')).toEqual(['a@x.nl', 'b@y.nl', 'c@z.nl'])
+    expect(parseAddresses('   ')).toEqual([])
+  })
+
+  it('zet een adres erbij en haalt het weer weg', () => {
+    expect(toggleAddress('', 'a@x.nl')).toBe('a@x.nl')
+    expect(toggleAddress('a@x.nl', 'b@y.nl')).toBe('a@x.nl, b@y.nl')
+    expect(toggleAddress('a@x.nl, b@y.nl', 'A@X.nl')).toBe('b@y.nl')
+  })
+
+  it('maakt één regel per adres, elk met dezelfde voorwaarden', () => {
+    const parts = splitForward({ subject: 'A/B Test Live', forward: 'a@x.nl, b@y.nl', skipInbox: true })
+    expect(parts).toEqual([
+      { subject: 'A/B Test Live', forward: 'a@x.nl', skipInbox: true },
+      { subject: 'A/B Test Live', forward: 'b@y.nl', skipInbox: true },
+    ])
+    expect(parts.map((p) => toFilter(p).action)).toEqual([
+      { removeLabelIds: ['INBOX'], forward: 'a@x.nl' },
+      { removeLabelIds: ['INBOX'], forward: 'b@y.nl' },
+    ])
+    // een regel naar een map blijft één regel
+    expect(splitForward({ from: 'a', label: 'Label_1', skipInbox: false })).toHaveLength(1)
+  })
+
+  it('keurt een lijst met een fout adres af en noemt welk', () => {
+    expect(ruleProblem({ from: 'a', forward: 'a@x.nl, b@y.nl', skipInbox: false })).toBeNull()
+    expect(ruleProblem({ from: 'a', forward: 'a@x.nl, geenadres', skipInbox: false })?.message).toContain('geenadres')
+    expect(ruleProblem({ from: 'a', forward: ' , ', skipInbox: false })?.field).toBe('forward')
+  })
+
+  it('herkent een regel die al bestaat, los van hoofdletters in het adres', () => {
+    expect(sameRule({ subject: 'x', forward: 'A@x.nl', skipInbox: false }, { subject: 'x', forward: 'a@X.nl', skipInbox: false })).toBe(true)
+    expect(sameRule({ subject: 'x', forward: 'a@x.nl', skipInbox: false }, { subject: 'x', forward: 'b@x.nl', skipInbox: false })).toBe(false)
+    expect(sameRule({ subject: 'x', forward: 'a@x.nl', skipInbox: false }, { subject: 'y', forward: 'a@x.nl', skipInbox: false })).toBe(false)
+  })
+
+  it('zet doorstuurregels met dezelfde voorwaarden samen op één rij', () => {
+    const rows = groupRules([
+      toRule({ id: '1', criteria: { subject: 'A/B Test Live' }, action: { forward: 'a@x.nl' } }),
+      toRule({ id: '2', criteria: { from: '@nieuwsbrief.nl' }, action: { addLabelIds: ['Label_2'] } }),
+      toRule({ id: '3', criteria: { subject: 'A/B Test Live' }, action: { forward: 'b@y.nl' } }),
+      toRule({ id: '4', criteria: { subject: 'A/B Test Live' }, action: { forward: 'c@z.nl', removeLabelIds: ['INBOX'] } }),
+      toRule({ id: '5', criteria: { from: 'a', hasAttachment: true }, action: { forward: 'a@x.nl' } }),
+      toRule({ id: '6', criteria: { from: '@nieuwsbrief.nl' }, action: { addLabelIds: ['Label_2'] } }),
+    ])
+    expect(rows.map((r) => r.ids)).toEqual([['1', '3'], ['2'], ['4'], ['5'], ['6']])
+    expect(rows[0].forwards).toEqual(['a@x.nl', 'b@y.nl'])
+    expect(rows[0].simple).toEqual({ subject: 'A/B Test Live', skipInbox: false })
+    expect(rows[2].forwards).toEqual(['c@z.nl'])  // "niet in Nieuw" is een andere regel
+    expect(rows[3].simple).toBeNull()             // meer dan de app kan beschrijven: blijft apart
+    expect(rows[1].forwards).toEqual([])          // twee gelijke map-regels blijven twee rijen
   })
 })

@@ -180,6 +180,10 @@ button:disabled{cursor:default;opacity:.6}
 .ruleform>input{width:100%}
 .ruleform .then{display:flex;flex-wrap:wrap;gap:8px}
 .ruleform .then input,.ruleform .then #r-label{flex:1 1 180px;min-width:0}
+.ruleform>span{align-self:start;padding-top:6px}
+.ruleform .addrs{flex:1 1 100%;min-width:0;display:flex;flex-wrap:wrap;gap:6px}
+.ruleform .addrs .btn{background:var(--surface);font-weight:400;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.ruleform .addrs .btn.on{background:var(--mark);color:var(--mark-ink)}
 .ruleform .end{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
 .ruleform .end label{display:flex;gap:6px;align-items:center}
 .rule{display:flex;gap:10px;align-items:baseline;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line)}

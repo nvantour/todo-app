@@ -1,7 +1,7 @@
 import { LoginNeeded } from '../errors';
 import { expire, getToken, serverSession } from './auth';
 import { attachments, bodyHtml, bodyText, header, htmlToText, person, type Attachment, type Header, type Part } from './parse';
-import { toFilter, toRule, type RawFilter, type Rule, type RuleSpec } from './rules';
+import { splitForward, toFilter, toRule, type RawFilter, type Rule, type RuleSpec } from './rules';
 
 const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
@@ -239,8 +239,8 @@ export const createLabel = (email: string, name: string) =>
 
 /* ---------- regels = Gmail-filters (werken ook als de app dicht is) ---------- */
 
-export type { Rule, RuleSpec } from './rules';
-export { ruleProblem } from './rules';
+export type { Rule, RuleRow, RuleSpec } from './rules';
+export { groupRules, parseAddresses, ruleProblem, sameRule, splitForward, toggleAddress } from './rules';
 
 export async function listRules(email: string): Promise<Rule[]> {
   const { filter = [] } = await gmail<{ filter?: RawFilter[] }>(email, '/settings/filters');
@@ -256,6 +256,21 @@ export async function createRule(email: string, spec: RuleSpec): Promise<Rule> {
     if (/^Gmail 400/.test(msg) && /already exists/i.test(msg)) throw new Error('Deze regel bestaat al.');
     if (spec.forward && /^Gmail 4\d\d/.test(msg) && /forward/i.test(msg))
       throw new Error(`Gmail stuurt alleen door naar een adres dat het kent. Voeg ${spec.forward} eerst toe in Gmail (Instellingen › Doorsturen) en laat de ontvanger bevestigen; daarna kan de regel gemaakt worden.`);
+    throw e;
+  }
+}
+
+/**
+ * Maakt een regel uit het formulier. Staan er meer doorstuuradressen in, dan één Gmail-filter per adres
+ * (Gmail kent er per filter maar één). Alles of niets: mislukt er één, dan halen we de andere weer weg.
+ */
+export async function createRules(email: string, parts: RuleSpec[]): Promise<Rule[]> {
+  const made: Rule[] = [];
+  try {
+    for (const part of parts.flatMap(splitForward)) made.push(await createRule(email, part));
+    return made;
+  } catch (e) {
+    await Promise.allSettled(made.map((r) => deleteRule(email, r.id)));
     throw e;
   }
 }

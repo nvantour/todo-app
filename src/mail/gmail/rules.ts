@@ -10,7 +10,7 @@ export interface RuleSpec {
   subject?: string;    // onderwerp bevat
   body?: string;       // bericht bevat (Gmail: "bevat de woorden", zelfde taal als het zoekveld)
   label?: string;      // naar deze map (id van een eigen Gmail-label)
-  forward?: string;    // doorsturen naar dit adres
+  forward?: string;    // doorsturen naar dit adres; in het formulier mogen het er meer zijn, gescheiden door een komma
   skipInbox: boolean;  // niet in Nieuw
 }
 
@@ -69,13 +69,71 @@ export function toFilter(s: RuleSpec): Omit<RawFilter, 'id'> {
   return { criteria, action };
 }
 
-/** Wat er nog mis is met een regel; null als hij gemaakt kan worden. */
+/** Adressen uit een invoerveld: gescheiden door komma, puntkomma of spatie. Dubbele gaan eruit. */
+export function parseAddresses(text: string): string[] {
+  const seen = new Set<string>();
+  return text.split(/[\s,;]+/).filter((a) => {
+    const key = a.toLowerCase();
+    if (!a || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Zet een adres erbij of haalt het weg uit de tekst van het invoerveld (voor de knoppen met bevestigde adressen). */
+export function toggleAddress(text: string, address: string): string {
+  const list = parseAddresses(text), key = address.toLowerCase();
+  const rest = list.filter((a) => a.toLowerCase() !== key);
+  return (rest.length === list.length ? [...list, address] : rest).join(', ');
+}
+
+/** Gmail kent per filter één doorstuuradres: een regel met meer adressen wordt één regel per adres. */
+export function splitForward(s: RuleSpec): RuleSpec[] {
+  if (s.forward === undefined) return [s];
+  return parseAddresses(s.forward).map((forward) => ({ ...s, forward }));
+}
+
+/** Zelfde voorwaarden, map en "niet in Nieuw"; het doorstuuradres telt niet mee. */
+const sameBase = (a: RuleSpec, b: RuleSpec) =>
+  (a.from ?? '') === (b.from ?? '') && (a.subject ?? '') === (b.subject ?? '') && (a.body ?? '') === (b.body ?? '')
+  && (a.label ?? '') === (b.label ?? '') && a.skipInbox === b.skipInbox;
+
+/** Twee regels die precies hetzelfde doen (Gmail weigert een tweede). */
+export const sameRule = (a: RuleSpec, b: RuleSpec) =>
+  sameBase(a, b) && (a.forward ?? '').toLowerCase() === (b.forward ?? '').toLowerCase();
+
+/** Een regel zoals de lijst hem toont: doorstuurregels met dezelfde voorwaarden staan samen op één rij. */
+export interface RuleRow {
+  ids: string[];            // de Gmail-filters achter deze rij
+  simple: RuleSpec | null;  // zonder `forward`; de adressen staan in `forwards`
+  forwards: string[];
+  summary: string;
+}
+
+export function groupRules(rules: Rule[]): RuleRow[] {
+  const rows: RuleRow[] = [];
+  for (const r of rules) {
+    const s = r.simple;
+    const row = s?.forward ? rows.find((x) => x.simple && x.forwards.length > 0 && sameBase(x.simple, s)) : undefined;
+    if (row && s?.forward) { row.ids.push(r.id); row.forwards.push(s.forward); continue; }
+    if (!s) { rows.push({ ids: [r.id], simple: null, forwards: [], summary: r.summary }); continue; }
+    const { forward, ...base } = s;
+    rows.push({ ids: [r.id], simple: base, forwards: forward ? [forward] : [], summary: r.summary });
+  }
+  return rows;
+}
+
+const EMAIL = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
+
+/** Wat er nog mis is met een regel uit het formulier; null als hij gemaakt kan worden. */
 export function ruleProblem(s: RuleSpec): { field: 'from' | 'label' | 'forward'; message: string } | null {
   if (!s.from?.trim() && !s.subject?.trim() && !s.body?.trim())
     return { field: 'from', message: 'Vul in waar de regel op let: afzender, onderwerp of bericht' };
   if (s.forward !== undefined) {
-    if (!s.forward.trim()) return { field: 'forward', message: 'Vul het adres in waar de mail naartoe moet' };
-    if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(s.forward.trim())) return { field: 'forward', message: 'Dat is geen geldig e-mailadres' };
+    const list = parseAddresses(s.forward);
+    if (!list.length) return { field: 'forward', message: 'Vul het adres in waar de mail naartoe moet' };
+    const wrong = list.find((a) => !EMAIL.test(a));
+    if (wrong) return { field: 'forward', message: list.length > 1 ? `“${wrong}” is geen geldig e-mailadres` : 'Dat is geen geldig e-mailadres' };
   } else if (!s.label) return { field: 'label', message: 'Kies een map' };
   return null;
 }
