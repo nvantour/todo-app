@@ -7,6 +7,7 @@ import { nowISO } from './logic'
  * Het vinkje op een kaart. Nino keurt de tekst goed; daarna:
  * - mail: de app verstuurt zelf via Gmail, als antwoord in de thread (en haalt hem uit Nieuw, zoals in Mail);
  * - Google Chat: de server verstuurt met de Google-koppeling;
+ * - Airtable: de server plaatst een reactie op het record (als antwoord op de reactie waar je op reageert);
  * - Teams en Slack: status "approved"; het verzendscript op de Mac mini verstuurt precies deze tekst.
  * Claude verstuurt nooit zelf: alleen deze klik zet iets in gang.
  */

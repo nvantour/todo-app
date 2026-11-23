@@ -125,3 +125,32 @@ describe('antwoorden: Google Chat versturen', () => {
     expect(sent).toEqual([[UID, 'spaces/A', 'Donderdag 10:00', 'spaces/A/threads/B']])
   })
 })
+
+describe('antwoorden: Airtable-reactie versturen', () => {
+  it('plaatst een antwoord in de draad, alleen vanuit de app', async () => {
+    const ctx = await withToken()
+    const calls: { url: string; body: unknown }[] = []
+    ctx.deps.airtableToken = () => 'pat-test'
+    ctx.deps.fetch = (async (url: string, init?: RequestInit) => {
+      calls.push({ url: String(url), body: JSON.parse(String(init?.body)) })
+      return new Response('{}', { status: 200 })
+    }) as typeof fetch
+    const target = { baseId: 'appAAAAAAAAAAAAAA', tableId: 'tblBBBBBBBBBBBBBB', recordId: 'recCCCCCCCCCCCCCC', parentCommentId: 'comDDDDDDDDDDDDDD' }
+    await call(ctx.deps, 'POST', '/replies', { replies: [incoming({ channel: 'airtable', externalId: 'airtable:comDDDDDDDDDDDDDD', target })] }, ctx.auth)
+    const [reply] = await ctx.repo.listReplies(UID)
+    expect((await call(ctx.deps, 'POST', `/replies/${reply.id}/send`, { text: 'Klopt' }, ctx.auth)).status).toBe(403)
+    expect((await call(ctx.deps, 'POST', `/replies/${reply.id}/send`, { text: 'Klopt' })).status).toBe(200)
+    expect(calls).toEqual([{ url: 'https://api.airtable.com/v0/appAAAAAAAAAAAAAA/tblBBBBBBBBBBBBBB/recCCCCCCCCCCCCCC/comments', body: { text: 'Klopt', parentCommentId: 'comDDDDDDDDDDDDDD' } }])
+  })
+
+  it('geeft een duidelijke melding als het token geen reacties mag plaatsen', async () => {
+    const ctx = await withToken()
+    ctx.deps.airtableToken = () => 'pat-test'
+    ctx.deps.fetch = (async () => new Response(JSON.stringify({ error: { type: 'INVALID_PERMISSIONS' } }), { status: 403 })) as unknown as typeof fetch
+    await call(ctx.deps, 'POST', '/replies', { replies: [incoming({ channel: 'airtable', externalId: 'a2', target: { baseId: 'appAAAAAAAAAAAAAA', tableId: 'tblBBBBBBBBBBBBBB', recordId: 'recCCCCCCCCCCCCCC' } })] }, ctx.auth)
+    const [reply] = await ctx.repo.listReplies(UID)
+    const res = await call(ctx.deps, 'POST', `/replies/${reply.id}/send`, { text: 'x' })
+    expect(res.status).toBe(502)
+    expect(JSON.stringify(res.body)).toContain('data.recordComments:write')
+  })
+})

@@ -14,10 +14,13 @@ export interface IncomingReply {
   reason?: string
 }
 
-export const CHANNEL_NAME: Record<ReplyChannel, string> = { mail: 'Mail', gchat: 'Google Chat', slack: 'Slack', teams: 'Teams' }
+export const CHANNEL_NAME: Record<ReplyChannel, string> = { mail: 'Mail', gchat: 'Google Chat', slack: 'Slack', teams: 'Teams', airtable: 'Airtable' }
+
+/** Volgorde van de kanalen op de tab. */
+export const CHANNELS: ReplyChannel[] = ['mail', 'gchat', 'teams', 'slack', 'airtable']
 
 /** Kanalen die de app (of de server) zelf verstuurt; de rest gaat via het verzendscript op de Mac mini. */
-export const SENT_BY_APP: ReplyChannel[] = ['mail', 'gchat']
+export const SENT_BY_APP: ReplyChannel[] = ['mail', 'gchat', 'airtable']
 
 const STATUSES: ReplyStatus[] = ['open', 'approved', 'sending', 'sent', 'failed', 'dismissed']
 

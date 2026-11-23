@@ -2265,3 +2265,14 @@ button.check.is-small::after {
     justify-content: center;
   }
 }
+
+.reply-filter {
+  flex-wrap: wrap;
+}
+
+.reply-filter__n {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+}

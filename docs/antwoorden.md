@@ -9,7 +9,8 @@ Wie wacht er op Nino? Claude zet per gesprek een kaart klaar met een conceptantw
 3. In de app (`/antwoorden`) past Nino het antwoord aan en klikt op **Versturen**.
 4. Versturen per kanaal:
    - **mail**: de app zelf (Gmail-API in de browser, `src/data/sendReply.ts`), als antwoord in de thread, met handtekening en citaat; daarna uit Nieuw.
-   - **gchat**: `POST /api/replies/:id/send` → de server plaatst het bericht met de Google-koppeling (scope `chat.messages.create`). Alleen met het ID-token van de app.
+   - **gchat**: `POST /api/replies/:id/send` → de server plaatst het bericht met de Google-koppeling (scope `chat.messages.create`). Alleen met het ID-token van de app. Vereist een Chat-app-configuratie in Google Cloud (API Google Chat → Configuratie: naam Werk-OS, interactief uit), ingesteld 2026-11-23.
+   - **airtable**: zelfde endpoint → de server plaatst een reactie op het record (`target.baseId/tableId/recordId`, `parentCommentId` voor een antwoord in de draad) met `AIRTABLE_API_TOKEN` (scope `data.recordComments:write`).
    - **teams / slack**: status `approved`; het verzendscript op de Mac mini (`reply-sender/`) haalt de wachtrij op, typt precies `draft` in het gesprek op `target.url` en meldt `sending` → `sent`/`failed`.
 
 **Claude verstuurt nooit.** Claude kan alleen kaarten als `open` aanleveren; goedkeuren kan alleen de app (Firestore-schrijfactie van de ingelogde gebruiker), en `/send` weigert elk token dat geen ID-token is.
@@ -34,4 +35,4 @@ Een nieuwe ronde van Claude (`mergeReply` in `src/data/replies.ts`):
 | POST | `/api/replies/:id/result` | token | `{status: 'sending'|'sent'|'failed', error?}`; alleen approved→sending→sent/failed |
 | POST | `/api/replies/:id/send` | alleen app (ID-token) | `{text}` → Google Chat versturen |
 
-`target` per kanaal: mail `{threadId}` · gchat `{space, thread}` · slack `{url, channel, ts}` · teams `{url}`.
+`target` per kanaal: mail `{threadId}` · gchat `{space, thread}` · slack `{url, channel, ts}` · teams `{url}` = `https://teams.microsoft.com/l/chat/<chat-id>/0?tenantId=<tenant>` · airtable `{baseId, tableId, recordId, parentCommentId?}`.

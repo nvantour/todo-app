@@ -8,7 +8,7 @@ import { airtableResolveSchema, captureSchema, deviceSchema, newTodoSchema, patc
 import type { ReplyChannel, ReplyStatus } from '../../src/model/types'
 import { detectClient, parseFilter, type TodoService } from './service'
 import { generateToken, hashToken } from './tokens'
-import { resolveAirtable } from './airtable'
+import { postAirtableComment, resolveAirtable } from './airtable'
 import { runCalendarScan, type PrepJudge } from './calendarScan'
 import { runChatScan } from './chatScan'
 import type { GoogleService } from './google'
@@ -285,7 +285,7 @@ const list = (v: string | undefined) => (v ? v.split(',').map((x) => x.trim()).f
  * - POST /replies: Claude zet kaarten klaar (altijd als "open").
  * - GET /replies?status=approved&channel=teams,slack: het verzendscript haalt de wachtrij op.
  * - POST /replies/:id/result: het verzendscript meldt voortgang (sending → sent/failed).
- * - POST /replies/:id/send: Google Chat versturen — alleen vanuit de app (vinkje), nooit met een token van Claude.
+ * - POST /replies/:id/send: Google Chat of Airtable versturen — alleen vanuit de app (vinkje), nooit met een token van Claude.
  */
 async function replies(req: ApiRequest, method: string, path: string, auth: AuthResult, deps: ApiDeps): Promise<ApiResponse> {
   const { service } = deps
@@ -306,13 +306,22 @@ async function replies(req: ApiRequest, method: string, path: string, auth: Auth
   const send = /^\/replies\/([^/]+)\/send$/.exec(path)
   if (send && method === 'POST') {
     if (auth.via !== 'idToken') throw new HttpError(403, 'forbidden', 'Versturen kan alleen vanuit de app zelf, met het vinkje.')
-    const g = need(deps.google, 'Koppelen met Google is nog niet ingesteld op de server.')
     const { text } = parseBody(replySendSchema, req.body)
     const reply = await service.getReply(auth.uid, decodeURIComponent(send[1]))
-    if (reply.channel !== 'gchat') throw badRequest('Alleen Google Chat verstuurt via de server.', 'wrong_channel')
-    if (!reply.target.space) throw badRequest('Onbekend in welke space dit gesprek staat.', 'no_target')
-    await g.sendChat(auth.uid, reply.target.space, text, reply.target.thread)
-    return json(200, { sent: true })
+    if (reply.channel === 'gchat') {
+      const g = need(deps.google, 'Koppelen met Google is nog niet ingesteld op de server.')
+      if (!reply.target.space) throw badRequest('Onbekend in welke space dit gesprek staat.', 'no_target')
+      await g.sendChat(auth.uid, reply.target.space, text, reply.target.thread)
+      return json(200, { sent: true })
+    }
+    if (reply.channel === 'airtable') {
+      const token = need(deps.airtableToken?.(), 'Airtable is nog niet ingesteld op de server (AIRTABLE_API_TOKEN).')
+      const { baseId, tableId, recordId, parentCommentId } = reply.target
+      if (!baseId || !tableId || !recordId) throw badRequest('Onbekend op welk Airtable-record deze reactie hoort.', 'no_target')
+      await postAirtableComment(token, { baseId, tableId, recordId, parentCommentId }, text, deps.fetch)
+      return json(200, { sent: true })
+    }
+    throw badRequest('Dit kanaal verstuurt niet via de server.', 'wrong_channel')
   }
   throw new HttpError(405, 'method_not_allowed', 'Deze methode kan hier niet.')
 }

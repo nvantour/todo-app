@@ -88,7 +88,7 @@ const replyMessageSchema = z.object({
 })
 
 export const incomingReplySchema = z.object({
-  channel: z.enum(['mail', 'gchat', 'slack', 'teams']),
+  channel: z.enum(['mail', 'gchat', 'slack', 'teams', 'airtable']),
   externalId: z.string().trim().min(1).max(300),
   title: z.string().trim().min(1).max(300),
   who: z.string().max(300).default(''),
@@ -101,6 +101,10 @@ export const incomingReplySchema = z.object({
     url: z.string().max(2000).optional(),
     channel: z.string().max(100).optional(),
     ts: z.string().max(100).optional(),
+    baseId: z.string().regex(/^app[A-Za-z0-9]{14}$/).optional(),
+    tableId: z.string().regex(/^tbl[A-Za-z0-9]{14}$/).optional(),
+    recordId: z.string().regex(/^rec[A-Za-z0-9]{14}$/).optional(),
+    parentCommentId: z.string().regex(/^com[A-Za-z0-9]{14}$/).optional(),
   }),
   messages: z.array(replyMessageSchema).max(50),
   draft: z.string().trim().min(1, 'Een voorstel voor het antwoord is verplicht').max(10_000),

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ExternalLink, Hash, ListPlus, Mail, MessageSquare, RotateCcw, Users, X, type LucideIcon } from 'lucide-react'
+import { Check, Database, ExternalLink, Hash, ListPlus, Mail, MessageSquare, RotateCcw, Users, X, type LucideIcon } from 'lucide-react'
 import type { Reply, ReplyChannel } from '../model/types'
 import { store, useAppData } from '../data/store'
-import { CHANNEL_NAME, SENT_BY_APP, visibleReplies } from '../data/replies'
+import { CHANNELS, CHANNEL_NAME, SENT_BY_APP, visibleReplies } from '../data/replies'
 import { approveReply, dismissReply, reopenReply } from '../data/sendReply'
 import { isInternal } from '../lib/sources'
 import { Link } from 'react-router-dom'
 
-const CHANNEL_ICON: Record<ReplyChannel, LucideIcon> = { mail: Mail, gchat: MessageSquare, slack: Hash, teams: Users }
+const CHANNEL_ICON: Record<ReplyChannel, LucideIcon> = { mail: Mail, gchat: MessageSquare, slack: Hash, teams: Users, airtable: Database }
 
 const time = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
@@ -20,7 +20,7 @@ export function RepliesView() {
   const data = useAppData()
   const replies = visibleReplies(data)
   const [filter, setFilter] = useState<ReplyChannel | 'all'>('all')
-  const channels = (['mail', 'gchat', 'slack', 'teams'] as ReplyChannel[]).filter((c) => replies.some((r) => r.channel === c))
+  const count = (c: ReplyChannel) => replies.filter((r) => r.channel === c && (r.status === 'open' || r.status === 'failed')).length
   const shown = filter === 'all' ? replies : replies.filter((r) => r.channel === filter)
 
   return (
@@ -30,23 +30,22 @@ export function RepliesView() {
         <p>Wie wacht er op jou. Pas het antwoord aan en verstuur met het vinkje.</p>
       </header>
 
-      {channels.length > 1 && (
-        <div className="seg reply-filter" role="group" aria-label="Kanaal">
-          <button className={filter === 'all' ? 'is-on' : ''} onClick={() => setFilter('all')}>
-            Alles
+      <div className="seg reply-filter" role="group" aria-label="Kanaal">
+        <button className={filter === 'all' ? 'is-on' : ''} onClick={() => setFilter('all')}>
+          Alles
+        </button>
+        {CHANNELS.map((c) => (
+          <button key={c} className={filter === c ? 'is-on' : ''} onClick={() => setFilter(c)}>
+            {CHANNEL_NAME[c]}
+            {count(c) > 0 && <span className="reply-filter__n">{count(c)}</span>}
           </button>
-          {channels.map((c) => (
-            <button key={c} className={filter === c ? 'is-on' : ''} onClick={() => setFilter(c)}>
-              {CHANNEL_NAME[c]}
-            </button>
-          ))}
-        </div>
-      )}
+        ))}
+      </div>
 
       {shown.length === 0 && (
         <div className="empty">
-          <strong>Niemand wacht op je</strong>
-          Typ <code>/chats-ophalen</code> in Claude om je openstaande chats en mails op te halen.
+          <strong>{filter === 'all' ? 'Niemand wacht op je' : `Niemand wacht op je in ${CHANNEL_NAME[filter]}`}</strong>
+          Typ <code>/chats-ophalen</code> in Claude om je openstaande gesprekken op te halen.
         </div>
       )}
 
@@ -101,7 +100,7 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
       title: `Antwoorden: ${reply.title}`,
       note: reply.reason,
       projectId: reply.projectId,
-      source: { type: reply.channel === 'mail' ? 'mail' : 'chat', label: `${CHANNEL_NAME[reply.channel]} · ${reply.title}`, url: reply.url ?? undefined, externalId: reply.externalId },
+      source: { type: reply.channel === 'mail' ? 'mail' : reply.channel === 'airtable' ? 'airtable' : 'chat', label: `${CHANNEL_NAME[reply.channel]} · ${reply.title}`, url: reply.url ?? undefined, externalId: reply.externalId },
     })
     dismissReply(reply)
   }

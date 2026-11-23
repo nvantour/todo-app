@@ -137,7 +137,7 @@ export interface Discussion {
 }
 
 /** Kanaal van een gesprek op de tab Antwoorden. */
-export type ReplyChannel = 'mail' | 'gchat' | 'slack' | 'teams'
+export type ReplyChannel = 'mail' | 'gchat' | 'slack' | 'teams' | 'airtable'
 
 /**
  * open = wacht op Nino · approved = vinkje gezet (Teams/Slack: het verzendscript pakt hem op) ·
@@ -163,6 +163,11 @@ export interface ReplyTarget {
   thread?: string
   /** teams en slack: de webpagina met het invoerveld van het juiste gesprek of de juiste thread. */
   url?: string
+  /** airtable: het record en (bij een antwoord op een reactie) de reactie waarop je reageert. */
+  baseId?: string
+  tableId?: string
+  recordId?: string
+  parentCommentId?: string
   /** slack: kanaal-id en (thread-)ts, ter info. */
   channel?: string
   ts?: string

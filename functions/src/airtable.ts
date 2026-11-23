@@ -90,3 +90,20 @@ export async function resolveAirtable(url: string, token: string, fetchImpl: Fet
 
   return { url: ref.url, baseId: ref.baseId, baseName, tableId, recordId: ref.recordId, recordName, label: buildLabel(recordName, baseName) }
 }
+
+/**
+ * Reactie plaatsen op een record, als de eigenaar van het token (Nino). Met parentCommentId als antwoord
+ * in die draad. Bron: https://airtable.com/developers/web/api/create-comment (scope data.recordComments:write).
+ */
+export async function postAirtableComment(token: string, t: { baseId: string; tableId: string; recordId: string; parentCommentId?: string }, text: string, fetchImpl: Fetch = fetch): Promise<void> {
+  const res = await fetchImpl(`${API}/${t.baseId}/${t.tableId}/${t.recordId}/comments`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(t.parentCommentId ? { text, parentCommentId: t.parentCommentId } : { text }),
+  })
+  if (res.ok) return
+  const body = (await res.json().catch(() => ({}))) as { error?: { type?: string; message?: string } | string }
+  const msg = typeof body.error === 'string' ? body.error : (body.error?.message ?? body.error?.type ?? `status ${res.status}`)
+  if (res.status === 403 || res.status === 401) throw new HttpError(502, 'airtable_forbidden', `Airtable weigerde de reactie (${msg}). Heeft het token het recht "data.recordComments:write" op deze base?`)
+  throw new HttpError(502, 'airtable_unavailable', `Airtable gaf een fout: ${msg}`)
+}
