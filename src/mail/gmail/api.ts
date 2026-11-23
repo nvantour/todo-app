@@ -5,24 +5,46 @@ import { splitForward, toFilter, toRule, type RawFilter, type Rule, type RuleSpe
 
 const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
+/*
+ * Gmail staat per gebruiker maar een beperkt aantal verzoeken per seconde toe. Daarom:
+ * hooguit een paar verzoeken tegelijk (de rest wacht in een rij), en bij "te druk" zelf
+ * even wachten en opnieuw proberen in plaats van meteen een foutmelding te tonen.
+ */
+const MAX_PARALLEL = 4;
+let running = 0;
+const waiting: (() => void)[] = [];
+async function slot<T>(fn: () => Promise<T>): Promise<T> {
+  if (running >= MAX_PARALLEL) await new Promise<void>((r) => waiting.push(r));
+  running++;
+  try { return await fn(); }
+  finally { running--; waiting.shift()?.(); }
+}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const BACKOFF = [1000, 2000, 4000, 8000, 16000];  // samen ruim een halve minuut
+
 async function gmail<T>(email: string, path: string, init: RequestInit = {}, retry = true): Promise<T> {
-  const res = await fetch(BASE + path, {
-    ...init,
-    headers: { Authorization: `Bearer ${await getToken(email)}`, 'Content-Type': 'application/json' },
-  });
-  if (res.status === 401) {
-    expire(email);
-    // Met een server-sessie haalt getToken stil een nieuw toegangsbewijs; één keer opnieuw proberen.
-    if (retry && serverSession(email)) return gmail<T>(email, path, init, false);
-    throw new LoginNeeded(email);
-  }
-  if (!res.ok) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await slot(async () => fetch(BASE + path, {
+      ...init,
+      headers: { Authorization: `Bearer ${await getToken(email)}`, 'Content-Type': 'application/json' },
+    }));
+    if (res.status === 401) {
+      expire(email);
+      // Met een server-sessie haalt getToken stil een nieuw toegangsbewijs; één keer opnieuw proberen.
+      if (retry && serverSession(email)) return gmail<T>(email, path, init, false);
+      throw new LoginNeeded(email);
+    }
+    if (res.ok) return res.json() as Promise<T>;
     const body = await res.text();
-    if (res.status === 429 || /quota exceeded|rateLimitExceeded/i.test(body))
-      throw new Error('Gmail vraagt om even rustiger aan te doen (te veel verzoeken per minuut). Probeer het over een minuut opnieuw.');
+    const busy = res.status === 429 || res.status === 503 || /quota exceeded|rateLimitExceeded|userRateLimitExceeded/i.test(body);
+    if (busy && attempt < BACKOFF.length) {
+      const after = Number(res.headers.get('Retry-After')) * 1000;
+      await sleep(Math.max(after || 0, BACKOFF[attempt] + Math.random() * 500));
+      continue;
+    }
+    if (busy) throw new Error('Gmail vraagt om even rustiger aan te doen (te veel verzoeken per minuut). Probeer het over een minuut opnieuw.');
     throw new Error(`Gmail ${res.status}: ${body.slice(0, 200)}`);
   }
-  return res.json() as Promise<T>;
 }
 
 interface RawMessage { id: string; labelIds?: string[]; internalDate: string; snippet: string; payload: Part & { headers: Header[] } }
