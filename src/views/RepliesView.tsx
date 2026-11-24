@@ -154,6 +154,7 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
 
       {reply.reason && <p className="reply__reason">{reply.reason}</p>}
 
+      <div className={`reply__compose${isMail && editable ? ' is-mail' : ''}`}>
       <textarea
         ref={box}
         className="reply__draft"
@@ -166,6 +167,7 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
         rows={2}
       />
       {isMail && editable && <SignaturePreview sig={signature} />}
+      </div>
 
       <footer className="reply__foot">
         <Status reply={reply} />
@@ -197,6 +199,7 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
         <LiveMailThread live={live} />
       ) : (
         <div className={`reply__thread${isMail ? ' is-mail' : ''}`}>
+          {isMail && <div className="reply__threadhead">Eerdere mails</div>}
           {!isMail && more}
           {messages.map((m, i) => (
             <div key={i} className={`reply__msg${m.mine ? ' is-mine' : ''}`}>

@@ -98,6 +98,7 @@ export function LiveMailThread({ live }: { live: LiveThread }) {
   const shown = showAll ? newestFirst : newestFirst.slice(0, 3)
   return (
     <div className="reply__thread is-mail">
+      <div className="reply__threadhead">Eerdere mails</div>
       {shown.map((m) => (
         <LiveMessage key={m.id} m={m} session={live} />
       ))}

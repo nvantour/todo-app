@@ -2239,14 +2239,80 @@ button.check.is-small::after {
   font-size: 12px;
 }
 
-/* De handtekening hoort bij het antwoord: direct onder het tekstvak. */
-.reply__sig {
-  margin-top: 6px;
+/* Mail: antwoord + handtekening in één wit vlak, zoals de mail eruit gaat. */
+.reply__compose.is-mail {
+  margin-top: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.reply__compose.is-mail:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.reply__compose.is-mail .reply__draft {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  color: #141412;
+  padding: 14px 16px 4px;
+  font-size: 15px;
+}
+
+.reply__compose.is-mail .reply__draft:focus {
+  outline: 0;
 }
 
 .reply__sig .reply__mailframe {
   margin-top: 0;
+  border: 0;
+  border-radius: 0;
   max-height: 320px;
+}
+
+.reply__compose.is-mail .reply__nosig {
+  margin: 0;
+  padding: 4px 16px 12px;
+}
+
+/* Eerdere mails: één blok, nieuwste bovenaan, alleen te lezen. */
+.reply__thread.is-mail {
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--sidebar);
+  gap: 0;
+  overflow: hidden;
+}
+
+.reply__threadhead {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.reply__thread.is-mail .reply__msg {
+  padding: 10px 16px 12px;
+}
+
+.reply__thread.is-mail .reply__msg + .reply__msg {
+  border-top: 1px solid var(--line);
+}
+
+.reply__thread.is-mail .reply__mailframe {
+  max-height: none;
+  border: 0;
+  border-radius: 6px;
+}
+
+.reply__thread.is-mail > .reply__more {
+  padding: 8px 16px 12px;
 }
 
 .reply__nosig {

@@ -13,9 +13,12 @@ export function mailDoc(html: string, images: boolean, quote: boolean) {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'${remote}; img-src data:${remote}; font-src data:${remote}">
 <base target="_blank"><style>
-html,body{margin:0;background:#fff;color:#141412}
+html,body{margin:0;background:#fff;color:#141412;-webkit-user-modify:read-only}
 body{padding:14px 16px;font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;overflow-wrap:anywhere}
 img{max-width:100%;height:auto} table{max-width:100%} pre{white-space:pre-wrap}
 ${quote ? '' : '.gmail_quote,blockquote[type=cite],.yahoo_quoted,#divRplyFwdMsg,#divRplyFwdMsg~*{display:none!important}'}
-</style></head><body>${html}</body></html>`;
+</style></head><body>${readOnly(html)}</body></html>`;
 }
+
+/** Een mail tonen, niet bewerken: bewerkbare stukken (contenteditable uit Outlook en co.) uitzetten. */
+const readOnly = (html: string) => html.replace(/\s(contenteditable|designmode)(\s*=\s*("[^"]*"|'[^']*'|[^\s>]+))?/gi, '');
