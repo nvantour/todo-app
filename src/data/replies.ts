@@ -92,7 +92,9 @@ export function mergeReply(existing: Reply | undefined, input: IncomingReply, st
   }
   if (existing.status === 'approved' || existing.status === 'sending') return { reply: existing, change: 'skipped' }
   if (existing.status === 'sent' || existing.status === 'dismissed') {
-    const since = existing.sentAt ?? existing.updatedAt
+    // Verstuurd: vanaf het versturen. Genegeerd: vanaf het negeren (niet een eerdere verzending, anders
+    // telt een bericht van vóór het negeren elke ronde opnieuw als nieuw).
+    const since = existing.status === 'sent' ? (existing.sentAt ?? existing.updatedAt) : existing.updatedAt
     const fresh = input.messages.some((m) => !m.mine && m.at && m.at > since)
     if (!fresh) return { reply: existing, change: 'skipped' }
     return { change: 'reopened', reply: { ...existing, ...base, projectId: input.projectId ?? existing.projectId, draft: input.draft, draftEdited: false, status: 'open', error: null, approvedAt: null, updatedAt: stamp } }

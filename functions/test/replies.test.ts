@@ -69,6 +69,17 @@ describe('antwoorden: ophalen door Claude', () => {
     expect((await repo.listReplies(UID))[0]).toMatchObject({ status: 'open', draft: 'Vrijdag ook.' })
   })
 
+  it('genegeerd na een eerdere verzending: een bericht van vóór het negeren heropent niet', async () => {
+    const { deps, repo, auth } = await withToken()
+    await call(deps, 'POST', '/replies', { replies: [incoming()] }, auth)
+    const [r] = await repo.listReplies(UID)
+    const answer = incoming({ messages: [{ author: 'Rick', text: 'En vrijdag?', at: '2026-11-18T10:00:00Z' }] })
+    await repo.saveReply(UID, { ...r, status: 'dismissed', sentAt: '2026-11-18T09:30:00Z', updatedAt: '2026-11-18T11:00:00Z' })
+    expect((await call(deps, 'POST', '/replies', { replies: [answer] }, auth)).body).toMatchObject({ skipped: 1 })
+    const later = incoming({ messages: [{ author: 'Rick', text: 'Nog een vraag', at: '2026-11-18T12:00:00Z' }] })
+    expect((await call(deps, 'POST', '/replies', { replies: [later] }, auth)).body).toMatchObject({ reopened: 1 })
+  })
+
   it('kan nooit zelf op goedgekeurd zetten: status in de invoer wordt genegeerd', async () => {
     const { deps, repo, auth } = await withToken()
     await call(deps, 'POST', '/replies', { replies: [incoming({ status: 'approved' })] }, auth)
