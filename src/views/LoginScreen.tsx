@@ -18,7 +18,7 @@ export function LoginScreen() {
         <span className="login__logo">
           <ListChecks size={26} />
         </span>
-        <h1>Todo</h1>
+        <h1>Work-OS</h1>
         <p>Log in om je taken te zien. Ze staan veilig online en je ziet ze op elk apparaat.</p>
         <button className="btn is-primary is-big" onClick={() => void login()} disabled={busy}>
           {busy ? 'Even geduld…' : 'Inloggen met Google'}

@@ -14,9 +14,9 @@ export default defineConfig({
       // gewoon script (geen module): werkt in alle browsers, ook oudere Safari
       injectManifest: { globPatterns: ['**/*.{js,css,html,svg,woff2}'], rollupFormat: 'iife' },
       manifest: {
-        name: 'Todo',
-        short_name: 'Todo',
-        description: 'AI-native todo-app',
+        name: 'Work-OS',
+        short_name: 'Work-OS',
+        description: 'Work-OS: taken, mail en antwoorden op één plek',
         lang: 'nl',
         start_url: '/',
         display: 'standalone',

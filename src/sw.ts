@@ -34,7 +34,7 @@ const app = initializeApp({
 // De server stuurt alleen "data": titel, tekst, pad en tag. Wij tonen de melding zelf, zodat hij overal gelijk is.
 onBackgroundMessage(getMessaging(app), (payload) => {
   const d = payload.data ?? {}
-  void self.registration.showNotification(d.title || 'Todo', { body: d.body, tag: d.tag, data: { url: d.url || '/taken' } })
+  void self.registration.showNotification(d.title || 'Work-OS', { body: d.body, tag: d.tag, data: { url: d.url || '/taken' } })
 })
 
 self.addEventListener('notificationclick', (event) => {
