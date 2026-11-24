@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Nino Todo - Quick Add",
+  "name": "Work-OS - Quick Add",
   "version": "1.0.0",
-  "description": "Voeg snel todo's toe vanuit elke webpagina",
+  "description": "Voeg snel een taak toe vanuit elke webpagina",
   "permissions": ["contextMenus", "activeTab", "storage"],
   "background": {
     "service_worker": "background.js"
@@ -26,7 +26,7 @@
         "default": "Ctrl+Shift+T",
         "mac": "Command+Shift+T"
       },
-      "description": "Open quick-add todo"
+      "description": "Snel een taak toevoegen"
     }
   }
 }

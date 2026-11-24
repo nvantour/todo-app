@@ -5,13 +5,13 @@ chrome.runtime.onInstalled.addListener(() => {
   // Menu-item bij geselecteerde tekst
   chrome.contextMenus.create({
     id: 'add-todo-selection',
-    title: 'Toevoegen als todo: "%s"',
+    title: 'Toevoegen als taak: "%s"',
     contexts: ['selection']
   });
   // Menu-item zonder selectie (opent lege quick-add)
   chrome.contextMenus.create({
     id: 'add-todo-page',
-    title: 'Nieuwe todo toevoegen',
+    title: 'Nieuwe taak toevoegen',
     contexts: ['page']
   });
 });
