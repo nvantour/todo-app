@@ -264,3 +264,11 @@ button.att:hover{border-color:var(--ink)}
 .chip.t{background:var(--task);color:var(--task-ink);padding:0 4px;font-weight:500;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .menu .mapform{display:flex;gap:6px;align-items:center}
 .set .keys{max-width:420px}
+
+/* Adressen aanvullen: lijst onder het adresveld */
+.frow{position:relative}
+.sugg{position:absolute;left:84px;right:14px;top:100%;z-index:20;margin-top:2px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:4px;max-height:260px;overflow:auto}
+.sugg .si{padding:7px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+.sugg .si b{font-weight:600}
+.sugg .si span{color:var(--muted)}
+.sugg .si.on,.sugg .si:hover{background:var(--sel)}

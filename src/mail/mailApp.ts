@@ -11,11 +11,12 @@ import {
   MAX_SEND_BYTES, getVacation, setVacation, createDraft, createLabel, deleteDraft, getAttachment, updateDraft, getSignature, getThread, listLabels,
   inInbox, labelCounts, listThreads, LoginNeeded, markRead, markUnread, send, setInInbox, setLabel,
   setSaved, setSpam, setTrash, createRule, createRules, deleteRule, groupRules, listForwardAddresses, listRules, parseAddresses, ruleProblem,
-  sameRule, splitForward, toggleAddress, ensureAcceptedRule, cleanAccepted, ACCEPTED_QUERY,
+  sameRule, splitForward, toggleAddress, ensureAcceptedRule, cleanAccepted, ACCEPTED_QUERY, loadContacts,
   type GmailDraft, type OutgoingFile, type Vacation, type Label, type ListQuery, type Outgoing, type Rule, type RuleRow, type RuleSpec, type Thread, type ThreadSummary,
 } from './mail';
 import * as R from './reminders';
 import { QUOTE, mailDoc } from './render';
+import { addressesIn, insertContact, matchContacts, tokenAt, type Contact } from './contacts';
 
 /** Wat de mail van het werk-OS nodig heeft: taken maken, bespreekpunten, naar Instellingen. */
 export interface MailHooks {
@@ -235,7 +236,56 @@ async function loadMeta() {
   if (sig.status === 'fulfilled') S.sig = sig.value;
   render();
   void loadCounts(true);
+  // Adresboek voor het aanvullen: rustig op de achtergrond, na de lijst en de tellers.
+  setTimeout(() => { if (S.account === account) loadContacts(account).then((c) => { if (S.account === account) contacts = c; }).catch(() => {}); }, 4000);
 }
+
+/* ---------- adressen aanvullen ---------- */
+
+let contacts: Contact[] = [];
+let sugg: { el: HTMLTextAreaElement; items: Contact[]; i: number } | null = null;
+
+function hideSugg() {
+  root.querySelector('.sugg')?.remove();
+  sugg = null;
+}
+
+/** Suggesties onder het adresveld bij wat er nu getypt wordt. */
+function showSugg(el: HTMLTextAreaElement) {
+  const caretAt = el.selectionStart ?? el.value.length;
+  const t = tokenAt(el.value, caretAt);
+  const items = t.text.includes('@') && /[>,]$/.test(t.text) ? [] : matchContacts(contacts, t.text, addressesIn(el.value.slice(0, t.start) + el.value.slice(t.end)));
+  if (!items.length) { hideSugg(); return; }
+  const i = sugg?.el === el ? Math.min(sugg.i, items.length - 1) : 0;
+  sugg = { el, items, i };
+  let box = root.querySelector<HTMLElement>('.sugg');
+  if (!box || box.parentElement !== el.parentElement) { box?.remove(); box = document.createElement('div'); box.className = 'sugg'; box.setAttribute('role', 'listbox'); el.parentElement!.append(box); }
+  box.innerHTML = items.map((c, n) => `<div class="si ${n === i ? 'on' : ''}" role="option" aria-selected="${n === i}" data-si="${n}">
+    ${c.name ? `<b>${esc(c.name)}</b> ` : ''}<span>${esc(c.email)}</span></div>`).join('');
+}
+
+function pickSugg(n: number) {
+  if (!sugg) return;
+  const { el, items } = sugg, c = items[n];
+  if (!c) return;
+  const r = insertContact(el.value, el.selectionStart ?? el.value.length, c);
+  el.value = r.value;
+  el.setSelectionRange(r.caret, r.caret);
+  hideSugg();
+  el.dispatchEvent(new Event('input', { bubbles: true }));  // concept bijwerken en veld laten meegroeien
+  hideSugg();
+  el.focus();
+}
+
+const on_pointerdown = ((ev: Event) => {
+  const item = (ev.target as HTMLElement).closest?.('[data-si]') as HTMLElement | null;
+  if (!item) return;
+  ev.preventDefault();  // veld houdt focus
+  pickSugg(Number(item.dataset.si));
+});
+const on_focusout = ((ev: Event) => {
+  if ((ev.target as HTMLElement).matches?.('textarea.addr')) hideSugg();
+});
 
 async function openThread(id: string) {
   if (!S.account) return;
@@ -1342,6 +1392,15 @@ const on_keydown = ((ev: KeyboardEvent) => {
   if (document.querySelector('[role="dialog"]')) return;
   const target = (ev.composedPath()[0] ?? ev.target) as HTMLElement;
   const typing = !!target.closest?.('input, textarea, select, [contenteditable]');
+  if (sugg && target === sugg.el) {
+    const n = sugg.items.length;
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      sugg.i = (sugg.i + (ev.key === 'ArrowDown' ? 1 : n - 1)) % n;
+      showSugg(sugg.el); ev.preventDefault(); return;
+    }
+    if (ev.key === 'Enter' || ev.key === 'Tab') { pickSugg(sugg.i); ev.preventDefault(); return; }
+    if (ev.key === 'Escape') { hideSugg(); ev.preventDefault(); return; }
+  }
   // Adresvelden lopen door over meer regels, maar Enter maakt geen nieuwe regel.
   if (ev.key === 'Enter' && target.matches?.('textarea.addr')) { ev.preventDefault(); return; }
   if (ev.key === 'Escape') {
@@ -1406,7 +1465,10 @@ const on_input = ((ev: Event) => {
     }
     return;
   }
-  if (el.classList?.contains('addr')) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
+  if (el.classList?.contains('addr')) {
+    el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`;
+    if ((ev as InputEvent).inputType !== undefined) showSugg(el as unknown as HTMLTextAreaElement);
+  }
   const key = FIELDS[el.id], d = current();
   if (key && d) { (d as unknown as Record<string, string>)[key] = el.value; if (key !== 'remAt') scheduleSave(d); }
 });
@@ -1521,6 +1583,8 @@ export function mountMail(el: HTMLElement, h: MailHooks, theme: string): () => v
   root.addEventListener('change', on_change);
   root.addEventListener('submit', on_submit);
   root.addEventListener('load', on_load, true);
+  root.addEventListener('pointerdown', on_pointerdown);
+  root.addEventListener('focusout', on_focusout);
   document.addEventListener('keydown', on_keydown);
   const onVisible = () => { if (!document.hidden) fireDue(); };
   document.addEventListener('visibilitychange', onVisible);
@@ -1549,6 +1613,8 @@ export function mountMail(el: HTMLElement, h: MailHooks, theme: string): () => v
     root.removeEventListener('change', on_change);
     root.removeEventListener('submit', on_submit);
     root.removeEventListener('load', on_load, true);
+    root.removeEventListener('pointerdown', on_pointerdown);
+    root.removeEventListener('focusout', on_focusout);
     document.removeEventListener('keydown', on_keydown);
     document.removeEventListener('visibilitychange', onVisible);
     clearInterval(timer);

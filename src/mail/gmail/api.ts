@@ -2,6 +2,7 @@ import { LoginNeeded } from '../errors';
 import { expire, getToken, serverSession } from './auth';
 import { attachments, bodyHtml, bodyText, header, htmlToText, inlineParts, person, type Attachment, type Header, type InlinePart, type Part } from './parse';
 import { splitForward, toFilter, toRule, type RawFilter, type Rule, type RuleSpec } from './rules';
+import { buildContacts, type Contact } from '../contacts';
 
 const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
@@ -445,4 +446,33 @@ export async function cleanAccepted(email: string): Promise<number> {
   const { threads = [] } = await gmail<{ threads?: { id: string }[] }>(email, `/threads?${p}`);
   await Promise.all(threads.map(async (t) => { await markRead(email, t.id); await setTrash(email, t.id, true); }));
   return threads.length;
+}
+
+/* ---------- adresboek (voor aanvullen in de adresvelden) ---------- */
+
+const CONTACTS_TTL = 24 * 3600_000;
+const contactsKey = (email: string) => `ec.contacts.v1.${email}`;
+
+/** Adresboek uit je eigen mail: wie je mailde (verzonden) en wie jou mailde. Een dag bewaard in de browser. */
+export async function loadContacts(email: string, force = false): Promise<Contact[]> {
+  try {
+    const c = JSON.parse(localStorage.getItem(contactsKey(email)) ?? 'null') as { at: number; list: Contact[] } | null;
+    if (c && !force && Date.now() - c.at < CONTACTS_TTL) return c.list;
+  } catch { /* geen of kapotte opslag */ }
+  const ids = async (q: string, max: number) =>
+    (await gmail<{ messages?: { id: string }[] }>(email, `/messages?maxResults=${max}&q=${encodeURIComponent(q)}`)).messages ?? [];
+  const [sent, got] = await Promise.all([
+    ids('in:sent newer_than:1y', 200),
+    ids('-in:sent newer_than:6m -category:promotions -category:social -category:updates -category:forums', 100),
+  ]);
+  const rows = await Promise.all([...sent.map((m) => ({ m, sent: true })), ...got.map((m) => ({ m, sent: false }))].map(async ({ m, sent: isSent }) => {
+    try {
+      const r = await gmail<RawMessage>(email, `/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc`);
+      const h = r.payload.headers;
+      return { from: header(h, 'From'), to: header(h, 'To'), cc: header(h, 'Cc'), date: Number(r.internalDate), sent: isSent };
+    } catch { return null; }
+  }));
+  const list = buildContacts(rows.filter((r): r is NonNullable<typeof r> => !!r), email).slice(0, 1500);
+  try { localStorage.setItem(contactsKey(email), JSON.stringify({ at: Date.now(), list })); } catch { /* vol */ }
+  return list;
 }

@@ -89,7 +89,8 @@ function headersFor(d: Draft, lastIn: Message | undefined) {
   const replyTo = d.mode === 'reply' || d.mode === 'all';
   const refs = lastIn && replyTo ? [lastIn.references, lastIn.messageId].filter(Boolean).join(' ') : '';
   return {
-    to: d.to, cc: d.cc, bcc: d.bcc, subject: d.subject,
+    // Geen losse komma aan het eind (na aanvullen staat er een komma achter het laatste adres).
+    to: splitAddrs(d.to).join(', '), cc: splitAddrs(d.cc).join(', '), bcc: splitAddrs(d.bcc).join(', '), subject: d.subject,
     threadId: replyTo ? d.threadId ?? undefined : undefined,
     inReplyTo: replyTo ? lastIn?.messageId || undefined : undefined,
     references: refs || undefined,
