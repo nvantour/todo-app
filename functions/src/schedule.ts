@@ -34,7 +34,7 @@ export async function scheduleTodo(
   const slot = findFreeSlot(busyFromEvents(events), now, minutes, SCAN_DAYS)
   if (!slot) throw new HttpError(409, 'no_free_slot', `Geen vrij blok van ${minutes} minuten in de komende ${SCAN_DAYS} dagen.`)
 
-  const description = [todo.note.trim(), todo.source.url ? `Bron: ${todo.source.url}` : '', 'Ingepland vanuit je todo-app.'].filter(Boolean).join('\n\n')
+  const description = [todo.note.trim(), todo.source.url ? `Bron: ${todo.source.url}` : '', 'Ingepland vanuit Work-OS.'].filter(Boolean).join('\n\n')
   const created = await api.insertEvent({
     summary: todo.title,
     description,

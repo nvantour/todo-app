@@ -215,7 +215,7 @@ function redirect(uri: string, params: Record<string, string>): ApiResponse {
   return { status: 302, headers: { Location: u.toString(), 'Cache-Control': 'no-store' } }
 }
 
-const shell = (body: string) => `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Todo's koppelen</title>
+const shell = (body: string) => `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Work-OS koppelen</title>
 <style>body{font:16px/1.5 system-ui,sans-serif;max-width:28rem;margin:3rem auto;padding:0 1rem;color:#1c1c1e}input[type=password],input[type=text]{width:100%;padding:.6rem;font:inherit;box-sizing:border-box;margin:.5rem 0 1rem}button{font:inherit;padding:.6rem 1rem;border-radius:.5rem;border:1px solid #888;background:#fff;cursor:pointer}button.go{background:#1c1c1e;color:#fff;border-color:#1c1c1e}.err{color:#b00020}</style></head><body>${body}</body></html>`
 
 function errorPage(message: string): string {
@@ -226,8 +226,8 @@ const HIDDEN = ['response_type', 'client_id', 'redirect_uri', 'code_challenge', 
 
 function consentPage(clientName: string, p: Record<string, unknown>, error: string): string {
   const hidden = HIDDEN.map((k) => `<input type="hidden" name="${k}" value="${esc(s(p[k]))}">`).join('')
-  return shell(`<h1>Todo's koppelen</h1>
-<p><strong>${esc(clientName)}</strong> vraagt toegang tot je todo's: lezen, toevoegen, aanpassen en afvinken.</p>
+  return shell(`<h1>Work-OS koppelen</h1>
+<p><strong>${esc(clientName)}</strong> vraagt toegang tot je taken: lezen, toevoegen, aanpassen en afvinken.</p>
 <p>Plak je persoonlijke token om toestemming te geven. Die maak je in de app onder Instellingen, Koppelingen.</p>
 ${error ? `<p class="err">${esc(error)}</p>` : ''}
 <form method="post" action="/oauth/authorize" autocomplete="off">${hidden}
