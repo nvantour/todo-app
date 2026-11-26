@@ -62,7 +62,8 @@ export const reopenReply = (reply: Reply) => store.updateReply(reply.id, { statu
 /**
  * Emoji op een bericht zetten. Alleen deze klik in de app zet het in gang (Claude kan het niet).
  * - Google Chat: de server zet de emoji meteen, met de Google-koppeling.
- * - Teams en Slack: het verzoek komt in de wachtrij van de kaart; het verzendscript op de Mac mini zet hem.
+ * - Teams en Slack: het verzoek komt in de wachtrij van de kaart; Claude zet hem in de uurronde
+ *   (Slack-koppeling, Teams in de Claude-browser). Claude zet alleen wat hier is aangeklikt.
  */
 export async function reactToMessage(reply: Reply, message: ReplyMessage, emoji: string): Promise<void> {
   const req = buildReaction(reply, message, emoji, newId(), nowISO())

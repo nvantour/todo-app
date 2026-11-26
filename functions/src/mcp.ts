@@ -227,6 +227,42 @@ export function createMcpServer(service: TodoService, uid: string, schedule?: Sc
   )
 
   server.registerTool(
+    'list_reaction_queue',
+    {
+      title: 'List emoji queue',
+      description:
+        "Emoji the USER clicked in the app on a Teams or Slack message (tab 'Antwoorden') that still have to be placed. Google Chat emoji are placed by the server itself and never appear here. Per item: replyId, channel, the conversation target/url, and reaction {id, emoji, messageId (Slack: the message ts), messageText, messageAuthor, messageAt}. Place ONLY these emoji, exactly as queued, on exactly that message; never add emoji of your own. For each item first call report_reaction_result with status 'sending', then place it (Slack: slack_add_reaction with the channel from target.channel or the url and the message ts; Teams: in the built-in browser, open target.url, hover the message, click the reaction), then report 'sent' or 'failed' with a short reason in Dutch. Read-only.",
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    () =>
+      guard(async () => {
+        const items = await service.listReactions(uid, { status: ['queued'], channel: ['teams', 'slack'] })
+        return text({ count: items.length, reactions: items })
+      }),
+  )
+
+  server.registerTool(
+    'report_reaction_result',
+    {
+      title: 'Report emoji result',
+      description:
+        "Report progress on one queued emoji from list_reaction_queue: 'sending' right before you place it (if this fails, do not place it), then 'sent' once it is on the message, or 'failed' with a short Dutch reason (e.g. 'Niet ingelogd op Teams in de Claude-browser', 'Bericht niet gevonden'). Only queued → sending → sent/failed is allowed. A failed emoji shows up red on the card and reopens the card if the user had closed it.",
+      inputSchema: {
+        replyId: z.string().min(1).max(100),
+        reactionId: z.string().min(1).max(100),
+        status: z.enum(['sending', 'sent', 'failed']),
+        error: z.string().max(500).optional(),
+      },
+    },
+    ({ replyId, reactionId, status, error }) =>
+      guard(async () => {
+        const reaction = await service.setReactionResult(uid, replyId, reactionId, status, error)
+        return text({ reaction })
+      }),
+  )
+
+  server.registerTool(
     'list_projects',
     {
       title: 'List projects',

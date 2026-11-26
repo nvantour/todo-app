@@ -42,7 +42,7 @@ describe('MCP over Streamable HTTP (stateless, token in header)', () => {
   it('werkt met het persoonlijke token zoals in .mcp.json', async () => {
     const client = new Client({ name: 'claude-code', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(url), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }))
-    expect((await client.listTools()).tools).toHaveLength(10)
+    expect((await client.listTools()).tools).toHaveLength(12)
     const r = (await client.callTool({ name: 'add_todo', arguments: { title: 'Via HTTP' } })) as { content: { text: string }[] }
     expect(JSON.parse(r.content[0].text).added.title).toBe('Via HTTP')
     await client.close()

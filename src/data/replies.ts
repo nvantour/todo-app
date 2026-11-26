@@ -182,7 +182,7 @@ export function shownReactions(reply: Pick<Reply, 'reactionQueue'>, m: ReplyMess
   return out
 }
 
-/** Nieuw emoji-verzoek voor een bericht. Google Chat gaat meteen ("sending"), Teams en Slack wachten op de Mac mini. */
+/** Nieuw emoji-verzoek voor een bericht. Google Chat gaat meteen ("sending"), Teams en Slack wachten op de uurronde van Claude. */
 export function buildReaction(reply: Pick<Reply, 'channel'>, m: ReplyMessage, emoji: string, id: string, stamp: string): ReactionRequest {
   return {
     id,

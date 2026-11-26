@@ -18,6 +18,8 @@ Staat er al tekst in het invoerveld (een oud concept), dan raakt het script niet
 
 ## Emoji (sinds 2026-11-26)
 
+> Draait nu niet: de Mac mini is niet in gebruik en Nino wil alleen in de Claude-browser inloggen. Emoji in Teams en Slack zet Claude in de uurronde (`docs/antwoorden.md` → "Emoji"). Deze code blijft staan voor als de mini weer aan gaat.
+
 Zet Nino in de app een emoji op een Teams- of Slack-bericht, dan komt die als verzoek in de wachtrij van de kaart (`reactionQueue`, status `queued`). Het script haalt elke ronde ook `GET /api/reactions?status=queued&channel=teams,slack` op en zet ze één voor één:
 
 - meldt eerst `sending` (lukt dat niet: niet zetten), daarna `sent` of `failed` met een korte reden, via `POST /api/replies/:id/reactions/:rid/result`;

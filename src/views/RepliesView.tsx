@@ -175,7 +175,7 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
       {reacted && editable && (
         <div className="reply__askdone" role="status">
           <span>
-            {reacted} {reply.channel === 'gchat' ? 'staat erop.' : 'gaat via de Mac mini.'} Klaar met dit gesprek?
+            {reacted} {reply.channel === 'gchat' ? 'staat erop.' : 'zet Claude in de uurronde.'} Klaar met dit gesprek?
           </span>
           <button
             className="btn is-primary"
