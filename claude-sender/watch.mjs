@@ -13,7 +13,6 @@ import { pending, countAttempts, newFailures, failureText, replyKey, reactionKey
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const API = (process.env.TODO_APP_API || 'https://work-apps-48770.web.app/api').replace(/\/$/, '')
 const STATE = path.join(os.homedir(), '.config', 'todo-app', 'claude-sender-state.json')
-const NOTIFY = path.resolve(HERE, '../../../Operationeel/Automatiseringen/notificatie.py')
 const INTERVAL = Number(process.env.CLAUDE_SENDER_INTERVAL || 15) * 1000
 const RUN_TIMEOUT = 10 * 60_000
 const MODEL = process.env.CLAUDE_SENDER_MODEL || 'sonnet'
@@ -72,8 +71,10 @@ function saveState(s) {
   fs.writeFileSync(STATE, JSON.stringify(s, null, 2))
 }
 
+/** macOS-melding. Tekst als argument, niet in het script: zo kan geen tekst het script breken. */
 function notify(title, body) {
-  execFile('python3', [NOTIFY, title, body], (err) => err && log(`! melding mislukt: ${err.message}`))
+  const script = 'on run argv\ndisplay notification (item 2 of argv) with title (item 1 of argv) sound name "Glass"\nend run'
+  execFile('osascript', ['-e', script, title, body.slice(0, 240)], (err) => err && log(`! melding mislukt: ${err.message}`))
 }
 
 /** MCP-config voor de todo-koppeling, met het pad naar de sleutel-helper buiten de repo. */
