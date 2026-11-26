@@ -157,3 +157,60 @@ test('shortReason: kort en zonder token', () => {
   assert.equal(shortReason('x'.repeat(300)).length, 200)
   assert.equal(shortReason({ reason: 'Invoerveld niet gevonden' }), 'Invoerveld niet gevonden')
 })
+
+// ---------- Emoji ----------
+import { slackEmojiName, teamsEmoji, shouldReact, validateReaction, pickSlackMessage, teamsTextMatches, wordScore } from './lib.mjs'
+
+const reaction = (over = {}) => ({
+  replyId: 'r1',
+  channel: 'slack',
+  target: { url: 'https://app.slack.com/client/T1/C1' },
+  reaction: { id: 'q1', emoji: '👍', messageId: '1700000000.000100', messageText: 'Kunnen we de test verlengen?', messageAuthor: 'Lisa', messageAt: '2023-11-14T22:13:20Z', status: 'queued' },
+  ...over,
+})
+
+test('Slack-namen van de emoji uit de app, ook zonder FE0F en eigen :naam:', () => {
+  assert.equal(slackEmojiName('👍'), '+1')
+  assert.equal(slackEmojiName('❤️'), 'heart')
+  assert.equal(slackEmojiName('❤'), 'heart')
+  assert.equal(slackEmojiName(':partyparrot:'), 'partyparrot')
+  assert.equal(slackEmojiName('🦄'), null)
+})
+
+test('Teams kent alle acht emoji uit de app', () => {
+  for (const e of ['👍', '❤️', '😂', '🙏', '✅', '👀', '🎉', '🙌']) assert.ok(teamsEmoji(e), e)
+  assert.equal(teamsEmoji('🦄'), null)
+})
+
+test('alleen wachtende emoji op Teams/Slack, en niet twee keer in dry-run', () => {
+  assert.equal(shouldReact(reaction()), true)
+  assert.equal(shouldReact(reaction({ channel: 'gchat' })), false)
+  assert.equal(shouldReact(reaction({ reaction: { ...reaction().reaction, status: 'sending' } })), false)
+  assert.equal(shouldReact(reaction(), new Set(['q1'])), false)
+})
+
+test('controle vooraf: link, bekende emoji, en weten welk bericht', () => {
+  assert.deepEqual(validateReaction(reaction()), { ok: true })
+  assert.equal(validateReaction(reaction({ target: {} })).ok, false)
+  assert.equal(validateReaction(reaction({ target: { url: 'https://evil.example/client/T/C' } })).ok, false)
+  assert.equal(validateReaction(reaction({ reaction: { ...reaction().reaction, emoji: '🦄' } })).ok, false)
+  assert.equal(validateReaction(reaction({ reaction: { ...reaction().reaction, messageId: null, messageText: ' ' } })).ok, false)
+})
+
+test('Slack: bericht kiezen op ts, of op tijd + tekst', () => {
+  const history = [
+    { ts: '1700000000.000100', text: 'Kunnen we de <@U1> test verlengen?' },
+    { ts: '1700000050.000200', text: 'Ander onderwerp helemaal' },
+  ]
+  assert.equal(pickSlackMessage(history, reaction().reaction), '1700000000.000100')
+  const noId = { ...reaction().reaction, messageId: null, messageAt: '2023-11-14T22:14:00Z' }
+  assert.equal(pickSlackMessage(history, noId), '1700000000.000100')
+  assert.equal(pickSlackMessage(history, { ...noId, messageText: 'Iets totaal anders vandaag' }), null)
+  assert.equal(pickSlackMessage(history, { ...noId, messageAt: '2026-01-01T00:00:00Z' }), null)
+})
+
+test('Teams: tekst vergelijken, los van spaties en vermeldingen', () => {
+  assert.equal(teamsTextMatches('Rick\nWanneer kunnen we de  eind- en startdatums doorlopen?', 'Wanneer kunnen we de eind- en startdatums doorlopen?'), true)
+  assert.equal(teamsTextMatches('Iets anders', 'Wanneer kunnen we de eind- en startdatums doorlopen?'), false)
+  assert.ok(wordScore('a b c', '') === 0)
+})

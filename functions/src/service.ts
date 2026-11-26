@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import type { AppData, Bucket, NewTodo, Project, Reply, ReplyChannel, ReplyStatus, Suggestion, Todo } from '../../src/model/types'
-import { mergeReply } from '../../src/data/replies'
+import type { AppData, Bucket, NewTodo, Project, ReactionRequest, ReactionStatus, Reply, ReplyChannel, ReplyStatus, Suggestion, Todo } from '../../src/model/types'
+import { mergeReply, stepReaction } from '../../src/data/replies'
 import { addDays, nextOccurrence } from '../../src/lib/dates'
 import { detectProject } from '../../src/lib/detect'
 import { effectiveBucket, todosInBucket } from '../../src/lib/selectors'
@@ -248,6 +248,35 @@ export class TodoService {
     const next: Reply = { ...r, status, updatedAt: stamp, error: status === 'failed' ? (error ?? 'Versturen mislukt.') : null, sentAt: status === 'sent' ? stamp : r.sentAt }
     await this.repo.saveReply(uid, next)
     return next
+  }
+
+  /**
+   * Emoji-verzoeken die de app op kaarten heeft gezet, voor het verzendscript (Teams/Slack).
+   * Ook van afgehandelde kaarten: "Klaar zo?" sluit de kaart terwijl de emoji nog moet.
+   */
+  async listReactions(uid: string, filter: { status?: ReactionStatus[]; channel?: ReplyChannel[] } = {}): Promise<{ replyId: string; channel: ReplyChannel; title: string; url: string | null; target: Reply['target']; reaction: ReactionRequest }[]> {
+    const all = await this.repo.listReplies(uid)
+    const out = []
+    for (const r of all) {
+      if (filter.channel && !filter.channel.includes(r.channel)) continue
+      for (const q of r.reactionQueue ?? []) {
+        if (filter.status && !filter.status.includes(q.status)) continue
+        out.push({ replyId: r.id, channel: r.channel, title: r.title, url: r.url, target: r.target, reaction: q })
+      }
+    }
+    return out.sort((a, b) => a.reaction.createdAt.localeCompare(b.reaction.createdAt))
+  }
+
+  /** Voortgang van een emoji (verzendscript): alleen wachtend → bezig → gezet/mislukt (of meteen mislukt). */
+  async setReactionResult(uid: string, replyId: string, reactionId: string, status: 'sending' | 'sent' | 'failed', error?: string): Promise<ReactionRequest> {
+    const r = await this.getReply(uid, replyId)
+    const req = r.reactionQueue?.find((q) => q.id === reactionId)
+    if (!req) throw notFound('Deze emoji staat niet (meer) op de kaart')
+    // Het tijdstip van de kaart blijft staan: een emoji is geen nieuw bericht (zie mergeReply).
+    const next = stepReaction(r, reactionId, status, this.stamp(), error)
+    if (!next) throw new HttpError(409, 'bad_transition', `Kan niet van "${req.status}" naar "${status}".`)
+    await this.repo.saveReply(uid, next)
+    return next.reactionQueue!.find((q) => q.id === reactionId)!
   }
 
   /** Voor de brief en de uitvoer: de effectieve plek (nu/later) van een taak. */

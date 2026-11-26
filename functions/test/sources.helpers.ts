@@ -27,6 +27,7 @@ export function fakeGoogle(data: FakeData = {}) {
   const inserted: NewCalEvent[] = []
   const deleted: string[] = []
   const posted: { space: string; text: string; thread?: string }[] = []
+  const reacted: { message: string; emoji: string }[] = []
   const api: GoogleApi = {
     listEvents: async () => data.events ?? [],
     insertEvent: async (e) => {
@@ -44,6 +45,7 @@ export function fakeGoogle(data: FakeData = {}) {
       posted.push({ space, text, thread })
       return { name: `${space}/messages/m${posted.length}` }
     },
+    createReaction: async (message, emoji) => void reacted.push({ message, emoji }),
     listMailThreads: async () => (data.mail ?? []).map((t) => t.id),
     getMailThread: async (id) => {
       if (data.failMail) throw new Error('stuk')
@@ -61,7 +63,7 @@ export function fakeGoogle(data: FakeData = {}) {
     connectedAt: '2026-11-01T00:00:00.000Z',
   }
   const google = { connection: async () => conn, api: async () => api } as unknown as GoogleService
-  return { google, api, conn, inserted, deleted }
+  return { google, api, conn, inserted, deleted, posted, reacted }
 }
 
 export function scanSetup(data: FakeData = {}, opts: Parameters<typeof setup>[0] = {}) {

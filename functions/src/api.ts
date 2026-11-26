@@ -4,8 +4,8 @@ import { authenticate, type AuthDeps, type AuthResult } from './auth'
 import { buildBrief } from './brief'
 import { runCapture, type AiCapture } from './capture'
 import { HttpError, badRequest, notFound } from './errors'
-import { airtableResolveSchema, captureSchema, deviceSchema, newTodoSchema, patchTodoSchema, replyResultSchema, replySendSchema, repliesInSchema, scheduleSchema, suggestionSchema } from './schemas'
-import type { ReplyChannel, ReplyStatus } from '../../src/model/types'
+import { airtableResolveSchema, captureSchema, deviceSchema, newTodoSchema, patchTodoSchema, reactionResultSchema, replyReactSchema, replyResultSchema, replySendSchema, repliesInSchema, scheduleSchema, suggestionSchema } from './schemas'
+import type { ReactionStatus, ReplyChannel, ReplyStatus } from '../../src/model/types'
 import { detectClient, parseFilter, type TodoService } from './service'
 import { generateToken, hashToken } from './tokens'
 import { postAirtableComment, resolveAirtable } from './airtable'
@@ -164,7 +164,7 @@ async function route(req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
   }
 
   if (path === '/google' || path.startsWith('/google/')) return google(method, path, auth, deps)
-  if (path === '/replies' || path.startsWith('/replies/')) return replies(req, method, path, auth, deps)
+  if (path === '/replies' || path.startsWith('/replies/') || path === '/reactions') return replies(req, method, path, auth, deps)
 
   if (path === '/scan/calendar' && method === 'POST') {
     const g = need(deps.google, 'Koppelen met Google is nog niet ingesteld.')
@@ -287,6 +287,9 @@ const list = (v: string | undefined) => (v ? v.split(',').map((x) => x.trim()).f
  * - GET /replies?status=approved&channel=teams,slack: het verzendscript haalt de wachtrij op.
  * - POST /replies/:id/result: het verzendscript meldt voortgang (sending → sent/failed).
  * - POST /replies/:id/send: Google Chat of Airtable versturen — alleen vanuit de app (vinkje), nooit met een token van Claude.
+ * - POST /replies/:id/react: emoji op een Google Chat-bericht — alleen vanuit de app.
+ * - GET /reactions?status=queued&channel=teams,slack: het verzendscript haalt de emoji-wachtrij op.
+ * - POST /replies/:id/reactions/:rid/result: het verzendscript meldt voortgang van een emoji.
  */
 async function replies(req: ApiRequest, method: string, path: string, auth: AuthResult, deps: ApiDeps): Promise<ApiResponse> {
   const { service } = deps
@@ -298,6 +301,27 @@ async function replies(req: ApiRequest, method: string, path: string, auth: Auth
     const status = list(req.query.status) as ReplyStatus[] | undefined
     const channel = list(req.query.channel) as ReplyChannel[] | undefined
     return json(200, { replies: await service.listReplies(auth.uid, { status, channel }) })
+  }
+  if (path === '/reactions' && method === 'GET') {
+    const status = list(req.query.status) as ReactionStatus[] | undefined
+    const channel = list(req.query.channel) as ReplyChannel[] | undefined
+    return json(200, { reactions: await service.listReactions(auth.uid, { status, channel }) })
+  }
+  const reactionResult = /^\/replies\/([^/]+)\/reactions\/([^/]+)\/result$/.exec(path)
+  if (reactionResult && method === 'POST') {
+    const { status, error } = parseBody(reactionResultSchema, req.body)
+    return json(200, { reaction: await service.setReactionResult(auth.uid, decodeURIComponent(reactionResult[1]), decodeURIComponent(reactionResult[2]), status, error) })
+  }
+  const react = /^\/replies\/([^/]+)\/react$/.exec(path)
+  if (react && method === 'POST') {
+    if (auth.via !== 'idToken') throw new HttpError(403, 'forbidden', 'Een emoji zetten kan alleen vanuit de app zelf.')
+    const { messageId, emoji } = parseBody(replyReactSchema, req.body)
+    const reply = await service.getReply(auth.uid, decodeURIComponent(react[1]))
+    if (reply.channel !== 'gchat') throw badRequest('Dit kanaal zet emoji via de Mac mini, niet via de server.', 'wrong_channel')
+    if (!reply.target.space || !messageId.startsWith(`${reply.target.space}/messages/`)) throw badRequest('Dit bericht hoort niet bij dit gesprek.', 'no_target')
+    const g = need(deps.google, 'Koppelen met Google is nog niet ingesteld op de server.')
+    await g.reactChat(auth.uid, messageId, emoji)
+    return json(200, { reacted: true })
   }
   const result = /^\/replies\/([^/]+)\/result$/.exec(path)
   if (result && method === 'POST') {

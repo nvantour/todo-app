@@ -16,6 +16,19 @@ Zo werkt het:
 
 Staat er al tekst in het invoerveld (een oud concept), dan raakt het script niets aan en wordt het `failed`.
 
+## Emoji (sinds 2026-11-26)
+
+Zet Nino in de app een emoji op een Teams- of Slack-bericht, dan komt die als verzoek in de wachtrij van de kaart (`reactionQueue`, status `queued`). Het script haalt elke ronde ook `GET /api/reactions?status=queued&channel=teams,slack` op en zet ze één voor één:
+
+- meldt eerst `sending` (lukt dat niet: niet zetten), daarna `sent` of `failed` met een korte reden, via `POST /api/replies/:id/reactions/:rid/result`;
+- **Slack**: opent het gesprek en gebruikt de eigen API van de Slack-webapp in de ingelogde pagina (`reactions.add`). Het bericht wordt gevonden op de ts (`messageId`), of anders op tijd + tekst via `conversations.history`/`conversations.replies`. Het token blijft in de pagina en wordt nooit gelogd.
+- **Teams**: opent het gesprek, zoekt het bericht (op id, anders op tekst), beweegt erover en klikt de snelle reactie (👍 ❤️ 😂) of zoekt de emoji op in "Meer reacties" (🙏 ✅ 👀 🎉 🙌).
+- Mislukt het op een kaart die Nino al had afgehandeld ("Klaar zo?" → Afhandelen), dan zet de server de kaart weer open, zodat hij het ziet.
+
+Dry-run: Slack controleert de sessie (`auth.test`) en vindt het bericht, maar zet niets. Teams opent de reactiebalk of "Meer reacties", vindt de juiste emoji en drukt dan Escape.
+
+> De Teams-stappen zijn gebouwd zonder live Teams om te testen (selectors op basis van bekende namen). Draai na het bijwerken eerst `node sender.mjs --dry-run --once --headful` met een echt verzoek in de wachtrij.
+
 ## Installeren
 
 Google Chrome moet geïnstalleerd zijn (Playwright gebruikt die, er wordt geen aparte browser gedownload).
@@ -96,7 +109,7 @@ Werkt Teams niet in de onzichtbare modus, zet dan `--headful` achter `run.sh` in
 
 ## Bestanden
 
-- `sender.mjs` — hoofdscript (server, browser, Teams, Slack).
+- `sender.mjs` — hoofdscript (server, browser, Teams, Slack, emoji).
 - `lib.mjs` — losse logica: welke antwoorden, link-controle, login-herkenning, tekst → toetsen, vergelijken, statussen.
 - `lib.test.mjs` — tests (`node --test`).
 - `run.sh` — wrapper voor launchd.

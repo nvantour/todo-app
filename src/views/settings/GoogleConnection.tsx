@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarDays, Check, Mail, MessageSquare, TriangleAlert } from 'lucide-react'
+import { CalendarDays, Check, Mail, MessageSquare, Smile, TriangleAlert } from 'lucide-react'
 import { apiCall, hasServer, ServerError } from '../../data/server'
 import { useSession } from '../../data/session'
 
@@ -20,6 +20,7 @@ interface Status {
   chat?: boolean
   mail?: boolean
   chatSend?: boolean
+  chatReact?: boolean
   lastCalendarScan?: Scan
   lastChatScan?: Scan
 }
@@ -200,6 +201,16 @@ export function GoogleConnection() {
               </div>
             </div>
           </div>
+          <div className="conn__row">
+            <div>
+              <div className="conn__name">
+                <Smile size={14} /> Chat emoji {status.chatReact ? <span className="pill is-ok"><Check size={12} /> Toegestaan</span> : <span className="pill is-bad">Geen toestemming</span>}
+              </div>
+              <div className="hint-text">
+                {status.chatReact ? 'Op de tab Antwoorden zet je een emoji onder een Chat-bericht.' : 'Koppel opnieuw en sta "reacties maken" toe om vanaf de tab Antwoorden een emoji onder een Chat-bericht te zetten.'}
+              </div>
+            </div>
+          </div>
 
           {!status.needsReauth && (
             <div className="conn__actions">
@@ -209,7 +220,7 @@ export function GoogleConnection() {
               <button className="btn" onClick={() => void scan('chat')} disabled={busy !== null || (!status.chat && !status.mail)}>
                 {busy === 'chat' ? 'Bezig…' : 'Antwoorden nu scannen'}
               </button>
-              {(!status.calendar || !status.chat || !status.mail || !status.chatSend) && (
+              {(!status.calendar || !status.chat || !status.mail || !status.chatSend || !status.chatReact) && (
                 <button className="btn" onClick={() => void connect()} disabled={busy !== null}>
                   Opnieuw koppelen
                 </button>

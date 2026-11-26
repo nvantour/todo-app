@@ -1,9 +1,9 @@
 // Google Chat lezen voor de antwoorden-scan: in welke gesprekken wacht iemand op jou?
 // Vaste herkenning, geen AI. replyScan.ts zet de vondsten als kaart op de tab Antwoorden.
 import type { IncomingReply } from '../../src/data/replies'
-import type { Reply, ReplyMessage } from '../../src/model/types'
+import type { Reply, ReplyMessage, ReplyReaction } from '../../src/model/types'
 import { HttpError } from './errors'
-import type { ChatMessage, ChatSpace, ChatUser, GoogleApi } from './googleApi'
+import type { ChatEmoji, ChatMessage, ChatSpace, ChatUser, GoogleApi } from './googleApi'
 
 /** Hoeveel dagen terug we kijken. */
 export const CHAT_DAYS = 3
@@ -97,6 +97,19 @@ const MAX_TEXT = 4000
 const live = (messages: ChatMessage[]) => messages.filter((m) => !m.deleteTime && m.createTime).sort((a, b) => t(a) - t(b))
 const toIso = (v: string | undefined) => (v && Date.parse(v) ? new Date(v).toISOString() : null)
 
+const emojiText = (e: ChatEmoji | undefined) => e?.unicode ?? (e?.customEmoji?.emojiName ? `:${e.customEmoji.emojiName.replace(/^:|:$/g, '')}:` : null)
+
+/** Emoji onder een Chat-bericht. Google zegt niet wie ze gaf, dus `mine` blijft open (de app onthoudt de eigen). */
+export function chatReactions(m: ChatMessage): ReplyReaction[] {
+  const out: ReplyReaction[] = []
+  for (const s of m.emojiReactionSummaries ?? []) {
+    const emoji = emojiText(s.emoji)
+    const count = s.reactionCount ?? 0
+    if (emoji && count > 0) out.push({ emoji, count })
+  }
+  return out
+}
+
 /** Leest de chats van de laatste dagen. Geeft een fout als geen enkele chat te lezen was. */
 export async function readChats(api: GoogleApi, cutoff: string, onError?: (e: unknown) => void): Promise<SpaceMessages[]> {
   const spaces = (await api.listSpaces())
@@ -163,6 +176,8 @@ export async function chatCards(api: GoogleApi, data: SpaceMessages[], meId: str
         text: (m.text ?? '').slice(0, MAX_TEXT),
         at: toIso(m.createTime),
         ...(m.sender?.name === me ? { mine: true } : {}),
+        id: m.name,
+        reactions: chatReactions(m),
       })),
       draft: '',
       reason:

@@ -4,6 +4,7 @@
 //   https://developers.google.com/workspace/calendar/api/v3/reference/events/insert
 //   https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces/list
 //   https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages/list
+//   https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages.reactions/create
 import { HttpError } from './errors'
 import type { Fetch } from './googleAuth'
 
@@ -57,6 +58,13 @@ export interface ChatMessage {
   thread?: { name?: string }
   threadReply?: boolean
   annotations?: { type?: string; userMention?: { user?: ChatUser; type?: 'MENTION' | 'ADD' | string } }[]
+  /** Emoji onder het bericht, opgeteld per emoji. Zegt niet wie ze gaf. */
+  emojiReactionSummaries?: { emoji?: ChatEmoji; reactionCount?: number }[]
+}
+
+export interface ChatEmoji {
+  unicode?: string
+  customEmoji?: { uid?: string; emojiName?: string }
 }
 
 export interface GmailHeader {
@@ -106,6 +114,8 @@ export interface GoogleApi {
   listMembers(space: string): Promise<ChatUser[]>
   /** Bericht plaatsen als de gebruiker; met `thread` als antwoord in die thread. */
   createMessage(space: string, text: string, thread?: string): Promise<ChatMessage>
+  /** Emoji (unicode) op een bericht zetten als de gebruiker. `message` = `spaces/X/messages/Y`. */
+  createReaction(message: string, unicode: string): Promise<void>
   /** Ids van mail-threads die bij een zoekopdracht in Gmail-taal horen (nieuwste eerst), hooguit `max`. */
   listMailThreads(query: string, max: number): Promise<string[]>
   /** Eén mail-thread: `metadata` = alleen kopregels en labels, `full` = met de tekst. */
@@ -166,6 +176,19 @@ export function createGoogleApi(accessToken: string, fetchImpl: Fetch = fetch): 
       const u = new URL(`${CHAT}/${space}/messages`)
       if (thread) u.searchParams.set('messageReplyOption', 'REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD')
       return call<ChatMessage>(u.toString(), { method: 'POST', body: JSON.stringify(thread ? { text, thread: { name: thread } } : { text }) })
+    },
+
+    createReaction: async (message, unicode) => {
+      const res = await fetchImpl(`${CHAT}/${message}/reactions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji: { unicode } }),
+      })
+      if (res.ok || res.status === 409) return // 409 = deze emoji van jou staat er al: ook goed
+      const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } }
+      const msg = body.error?.message ?? `status ${res.status}`
+      if (res.status === 403) throw new HttpError(502, 'google_forbidden', `Google weigerde de emoji: ${msg}`)
+      throw new HttpError(502, 'google_unavailable', `Google gaf een fout: ${msg}`)
     },
 
     listMembers: async (space) => {

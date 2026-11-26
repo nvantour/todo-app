@@ -3,7 +3,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { describe, expect, it } from 'vitest'
 import { cellText, resolveAirtable } from '../src/airtable'
 import { GoogleService } from '../src/google'
-import { SCOPE_CALENDAR, SCOPE_CHAT_CREATE, SCOPE_CHAT_MESSAGES, SCOPE_CHAT_SPACES, SCOPE_GMAIL_MODIFY, SCOPE_GMAIL_SETTINGS, buildAuthUrl } from '../src/googleAuth'
+import { SCOPE_CALENDAR, SCOPE_CHAT_CREATE, SCOPE_CHAT_REACT, SCOPE_CHAT_MESSAGES, SCOPE_CHAT_SPACES, SCOPE_GMAIL_MODIFY, SCOPE_GMAIL_SETTINGS, buildAuthUrl } from '../src/googleAuth'
 import { createMcpServer } from '../src/mcp'
 import { scheduleTodo } from '../src/schedule'
 import { NOW, UID, call, personalToken, setup } from './helpers'
@@ -82,7 +82,7 @@ describe('Airtable-link omzetten', () => {
 describe('Google koppelen', () => {
   const cfg = { clientId: 'cid', clientSecret: 'sec' }
   const REDIRECT = 'https://todo.example.web.app/api/google/callback'
-  const tokenBody = { access_token: 'acc', expires_in: 3600, refresh_token: 'ref', scope: `openid email ${[SCOPE_CALENDAR, SCOPE_CHAT_MESSAGES, SCOPE_CHAT_SPACES, 'https://www.googleapis.com/auth/chat.memberships.readonly', SCOPE_CHAT_CREATE, SCOPE_GMAIL_MODIFY, SCOPE_GMAIL_SETTINGS].join(' ')}` }
+  const tokenBody = { access_token: 'acc', expires_in: 3600, refresh_token: 'ref', scope: `openid email ${[SCOPE_CALENDAR, SCOPE_CHAT_MESSAGES, SCOPE_CHAT_SPACES, 'https://www.googleapis.com/auth/chat.memberships.readonly', SCOPE_CHAT_CREATE, SCOPE_CHAT_REACT, SCOPE_GMAIL_MODIFY, SCOPE_GMAIL_SETTINGS].join(' ')}` }
   function gsetup(tokenResponse: () => { status?: number; body?: unknown } = () => ({ body: tokenBody })) {
     const ctx = setup()
     const net = fakeFetch({
@@ -105,7 +105,7 @@ describe('Google koppelen', () => {
     expect(u.searchParams.get('access_type')).toBe('offline')
     expect(u.searchParams.get('prompt')).toBe('consent')
     expect(u.searchParams.get('redirect_uri')).toBe(REDIRECT)
-    expect(u.searchParams.get('scope')!.split(' ')).toEqual(['openid', 'email', SCOPE_CALENDAR, SCOPE_CHAT_MESSAGES, SCOPE_CHAT_SPACES, 'https://www.googleapis.com/auth/chat.memberships.readonly', SCOPE_CHAT_CREATE, SCOPE_GMAIL_MODIFY, SCOPE_GMAIL_SETTINGS])
+    expect(u.searchParams.get('scope')!.split(' ')).toEqual(['openid', 'email', SCOPE_CALENDAR, SCOPE_CHAT_MESSAGES, SCOPE_CHAT_SPACES, 'https://www.googleapis.com/auth/chat.memberships.readonly', SCOPE_CHAT_CREATE, SCOPE_CHAT_REACT, SCOPE_GMAIL_MODIFY, SCOPE_GMAIL_SETTINGS])
   })
 
   it('koppelt: bewaart het refresh-token alleen op de server en maakt de standaardregel', async () => {
@@ -129,7 +129,7 @@ describe('Google koppelen', () => {
   it('meldt welke toestemming ontbreekt (gedeeltelijk)', async () => {
     const { google } = gsetup(() => ({ body: { ...tokenBody, scope: `openid email ${SCOPE_CALENDAR}` } }))
     const r = await google.finishConnect('c', stateOf(await google.startConnect(UID, REDIRECT)), REDIRECT)
-    expect(r.missing).toHaveLength(6)
+    expect(r.missing).toHaveLength(7)
     expect((await google.status(UID)).chat).toBe(false)
     expect((await google.status(UID)).mail).toBe(false)
     await expect(google.mailToken(UID)).rejects.toMatchObject({ code: 'google_mail_scope' })

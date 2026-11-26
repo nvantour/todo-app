@@ -33,6 +33,22 @@ Beperking bij Teams en Slack: de server ziet alleen wat als meldingsmail binnenk
 - **Handtekening** (mail): onder het tekstvak staat de handtekening uit Gmail zoals hij meegaat. De Gmail-API geeft alleen de handtekening die in Gmail als **standaard voor nieuwe e-mails** is gekozen. Staat die op "Geen handtekening", dan gaat de mail zonder weg en zegt de kaart dat.
 - Een chat (Google Chat, Teams, Slack) blijft in de volgorde van het gesprek.
 
+## Emoji (sinds 2026-11-26)
+
+Onder elk chatbericht (Google Chat, Teams, Slack) staan de emoji die erop gegeven zijn, met hoe vaak; die van Nino zelf zijn gekleurd. Met de knop ernaast (smiley met plus) zet Nino er zelf een: 👍 ❤️ 😂 🙏 ✅ 👀 🎉 🙌. Een emoji van een ander aanklikken = dezelfde erbij zetten. Na een emoji vraagt de kaart "Klaar met dit gesprek?": **Afhandelen** zet de kaart op `dismissed` (komt terug bij een nieuw bericht), **Ik antwoord ook** laat hem open.
+
+**Lezen** (`ReplyMessage.reactions`, met `id` = het bericht-id in de bron):
+- Google Chat: de scan leest `emojiReactionSummaries` mee. Google zegt niet wie een emoji gaf; dat het de jouwe is, onthoudt de kaart zelf (`mergeMessages` houdt `mine` vast).
+- Teams en Slack: alleen via Claude (`/chats-ophalen` en de uurronde), die per bericht `id` en `reactions` meegeeft. De scan van meldingsmails kent ze niet; een ronde zonder `reactions` laat bestaande staan.
+
+**Zetten** (`Reply.reactionQueue`, één `ReactionRequest` per emoji; alleen de app maakt ze aan, Claude nooit):
+- Google Chat: de app roept `POST /api/replies/:id/react` aan (alleen ID-token van de app); de server zet de emoji met de Google-koppeling (scope `chat.messages.reactions.create`, vraagt één keer opnieuw koppelen; zie Instellingen → "Chat emoji").
+- Teams en Slack: status `queued`; het verzendscript op de Mac mini haalt `GET /api/reactions?status=queued&channel=teams,slack` op en meldt `sending` → `sent`/`failed` via `POST /api/replies/:id/reactions/:rid/result`. Slack via de eigen API van de ingelogde Slack-webapp (`reactions.add`), Teams door over het bericht te bewegen en de emoji aan te klikken (zie `reply-sender/README.md`).
+- Statussen: `queued` → `sending` → `sent` | `failed` (Chat begint meteen bij `sending`). Bij `sent` komt de emoji onder het bericht (`withReaction`). Mislukt het terwijl de kaart al was afgehandeld, dan gaat de kaart weer open. Een mislukte emoji staat rood; aanklikken = opnieuw proberen.
+- Een emoji-resultaat verandert `updatedAt` van de kaart niet: het is geen nieuw bericht.
+
+Logica gedeeld tussen app en server in `src/data/replies.ts` (`canReact`, `shownReactions`, `stepReaction`, `mergeMessages`), knoppen in `src/views/replies/Reactions.tsx`.
+
 ## Altijd een concept
 
 Elke open kaart hoort een conceptantwoord te hebben. De scan schrijft er geen (de server heeft bewust geen Claude-sleutel); Claude vult ze aan. `list_replies` geeft per kaart `hasDraft`; met `details: true` komen de berichten, het verzendadres en de uitleg mee, zodat Claude het concept kan schrijven en met `save_reply_drafts` (zelfde kanaal en `externalId`) op de kaart zet. Zie de skill `/chats-ophalen`, onderdeel "Alleen concepten aanvullen".
@@ -73,6 +89,9 @@ Een nieuwe ronde van Claude of van de scan (`mergeReply` in `src/data/replies.ts
 | GET | `/api/replies?status=approved&channel=teams,slack` | token of app | wachtrij voor het script |
 | POST | `/api/replies/:id/result` | token | `{status: 'sending'|'sent'|'failed', error?}`; alleen approved→sending→sent/failed |
 | POST | `/api/replies/:id/send` | alleen app (ID-token) | `{text}` → Google Chat versturen |
+| POST | `/api/replies/:id/react` | alleen app (ID-token) | `{messageId, emoji}` → emoji op een Google Chat-bericht |
+| GET | `/api/reactions?status=queued&channel=teams,slack` | token of app | emoji-wachtrij voor het script: `{reactions: [{replyId, channel, title, url, target, reaction}]}` |
+| POST | `/api/replies/:id/reactions/:rid/result` | token | `{status: 'sending'|'sent'|'failed', error?}`; alleen queued→sending→sent/failed |
 
 `externalId` per kanaal (zo geeft de scan ze; Claude neemt de naam van een bestaande kaart over): mail `gmail:<threadId>` · gchat de thread `spaces/X/threads/Y`, of voor een DM de space `spaces/X` · teams `teams:<chat-id>` · slack `slack:<kanaal>:<ts>`, of voor een DM `slack:<kanaal>`.
 

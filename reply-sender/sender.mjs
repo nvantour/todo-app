@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Reply-sender: verstuurt goedgekeurde antwoorden uit de todo-app in Teams en Slack (web).
-// Verstuurt PRECIES `draft`. Zie README.md.
+// Reply-sender: verstuurt goedgekeurde antwoorden uit de todo-app in Teams en Slack (web),
+// en zet de emoji die Nino in de app op een bericht zette. Verstuurt PRECIES `draft`. Zie README.md.
 
 import { chromium } from 'playwright'
 import os from 'node:os'
@@ -21,6 +21,13 @@ import {
   statusPlan,
   shortReason,
   SendError,
+  shouldReact,
+  validateReaction,
+  slackEmojiName,
+  teamsEmoji,
+  parseSlackUrl,
+  pickSlackMessage,
+  teamsTextMatches,
 } from './lib.mjs'
 
 const API_BASE = (process.env.TODO_APP_API || DEFAULT_API_BASE).replace(/\/$/, '')
@@ -84,6 +91,29 @@ async function fetchApproved() {
 async function setStatus(id, status, error) {
   const body = error ? { status, error } : { status }
   return api('POST', `/replies/${encodeURIComponent(id)}/result`, body)
+}
+
+async function fetchQueuedReactions() {
+  const data = await api('GET', '/reactions?status=queued&channel=teams,slack')
+  if (!Array.isArray(data.reactions)) throw new Error('Antwoord van de server heeft geen lijst "reactions"')
+  return data.reactions
+}
+
+const reactionPath = (item) => `/replies/${encodeURIComponent(item.replyId)}/reactions/${encodeURIComponent(item.reaction.id)}/result`
+
+async function reportReaction(item, status, error) {
+  const body = error ? { status, error } : { status }
+  for (let i = 1; i <= 3; i++) {
+    try {
+      await api('POST', reactionPath(item), body)
+      return true
+    } catch (e) {
+      if (status === 'sending') throw e // vóór het zetten: niet doorgaan
+      log(`  ! emoji-status ${status} doorgeven mislukt (poging ${i}/3): ${shortReason(e)}`)
+      await sleep(3000 * i)
+    }
+  }
+  return false
 }
 
 /** Eindstatus doorgeven; een paar keer proberen, want dit mag niet zomaar verloren gaan. */
@@ -335,6 +365,177 @@ async function waitUntil(fn, timeout) {
   return false
 }
 
+// ---------- Emoji zetten ----------
+
+/**
+ * Slack: via de eigen API van de Slack-webapp, in de ingelogde pagina (zelfde sessie als klikken).
+ * Robuuster dan knoppen zoeken: het bericht hoeft niet in beeld te staan. Het token verlaat de pagina niet.
+ */
+async function reactSlack(page, item, { dryRun }) {
+  const parsed = parseSlackUrl(item.target.url)
+  const channel = item.target.channel || parsed.channel
+  const threadTs = item.target.ts || (parsed.thread ? parsed.thread.split('-').pop() : null)
+  const name = slackEmojiName(item.reaction.emoji)
+
+  // Wachten tot de webapp zijn sessie heeft geladen.
+  const ready = await waitUntil(async () => {
+    if (isLoginUrl(page.url(), 'slack')) throw new SendError(loginError('slack'))
+    return page.evaluate((team) => Boolean(JSON.parse(localStorage.getItem('localConfig_v2') || '{}').teams?.[team]?.token), parsed.team)
+  }, PAGE_TIMEOUT)
+  if (!ready) throw new SendError('Slack-sessie niet gevonden voor deze werkruimte (ingelogd bij de juiste Slack?)')
+
+  const slack = (method, params) =>
+    page.evaluate(
+      async ({ team, method, params }) => {
+        const t = JSON.parse(localStorage.getItem('localConfig_v2') || '{}').teams[team]
+        const base = (t.url || 'https://slack.com/').replace(/\/?$/, '/') + 'api/'
+        const form = new FormData()
+        form.append('token', t.token)
+        for (const [k, v] of Object.entries(params)) form.append(k, String(v))
+        const res = await fetch(base + method, { method: 'POST', body: form, credentials: 'include' })
+        const body = await res.json().catch(() => ({ ok: false, error: `http_${res.status}` }))
+        // Alleen wat we nodig hebben terug, nooit het token.
+        return { ok: body.ok, error: body.error, messages: (body.messages || []).map((m) => ({ ts: m.ts, text: m.text || '' })) }
+      },
+      { team: parsed.team, method, params },
+    )
+
+  let ts = item.reaction.messageId && /^\d+\.\d+$/.test(item.reaction.messageId) ? item.reaction.messageId : null
+  if (!ts) {
+    const hist = threadTs ? await slack('conversations.replies', { channel, ts: threadTs, limit: 200 }) : await slack('conversations.history', { channel, limit: 200 })
+    if (!hist.ok) throw new SendError(`Slack-gesprek niet te lezen (${hist.error})`)
+    ts = pickSlackMessage(hist.messages, item.reaction)
+    if (!ts) throw new SendError('Bericht niet gevonden in Slack (te oud of tekst veranderd)')
+  }
+
+  if (dryRun) {
+    const who = await slack('auth.test', {})
+    if (!who.ok) throw new SendError(`Slack-sessie werkt niet (${who.error})`)
+    log(`  [dry-run] Slack-sessie werkt; zou :${name}: zetten op bericht ${ts} in ${channel}`)
+    return
+  }
+  const res = await slack('reactions.add', { channel, timestamp: ts, name })
+  if (!res.ok && res.error !== 'already_reacted') throw new SendError(`Slack weigerde de emoji (${res.error})`)
+}
+
+const TEAMS_MESSAGES = '[data-tid="chat-pane-message"], [data-tid="channel-pane-message"], [data-tid="reply-message"]'
+const TEAMS_MORE = /^(More reactions|Meer reacties|More emoji and reactions|Meer emoji's en reacties)$/i
+
+async function findTeamsMessage(page, req) {
+  if (req.messageId) {
+    const byId = page.locator(`[id="content-${req.messageId}"], [data-mid="${req.messageId}"], [id="${req.messageId}"]`).first()
+    if (await byId.isVisible().catch(() => false)) return byId
+  }
+  const all = page.locator(TEAMS_MESSAGES)
+  const n = await all.count()
+  // Van onder naar boven: het meest recente bericht met deze tekst.
+  for (let i = n - 1; i >= Math.max(0, n - 80); i--) {
+    const el = all.nth(i)
+    const text = await textWithAlt(el).catch(() => '')
+    if (teamsTextMatches(text, req.messageText)) return el
+  }
+  return null
+}
+
+/** Teams heeft geen bruikbare API in de browser: over het bericht bewegen en de emoji aanklikken. */
+async function reactTeams(page, item, { dryRun }) {
+  const spec = teamsEmoji(item.reaction.emoji)
+  const loaded = await waitForAny(page, [page.locator(TEAMS_MESSAGES)], 'teams', PAGE_TIMEOUT)
+  if (!loaded) throw new SendError('Gesprek niet geladen in Teams')
+  await sleep(1500)
+  const msg = await findTeamsMessage(page, item.reaction)
+  if (!msg) throw new SendError('Bericht niet gevonden in Teams (te oud of tekst veranderd)')
+  await msg.scrollIntoViewIfNeeded().catch(() => {})
+  await msg.hover()
+  await sleep(600)
+
+  // 1. Snelle reactie in de balk (👍 ❤️ 😂).
+  if (spec.quick) {
+    const quick = page.getByRole('button', { name: spec.quick })
+    if (await quick.first().isVisible().catch(() => false)) {
+      if (dryRun) return log(`  [dry-run] knop voor ${item.reaction.emoji} gevonden in de reactiebalk; zou nu klikken`)
+      await quick.first().click()
+      return
+    }
+  }
+  // 2. Anders: "Meer reacties" → zoeken → de emoji met de juiste naam.
+  const more = page.getByRole('button', { name: TEAMS_MORE })
+  if (!(await more.first().isVisible().catch(() => false))) throw new SendError('Emoji-knop niet gevonden in Teams (over het bericht bewegen gaf geen reactiebalk)')
+  await more.first().click()
+  const search = await waitForAny(page, [page.getByRole('searchbox'), page.locator('input[type="search"]'), page.locator('input[placeholder*="Search" i], input[placeholder*="Zoek" i]')], 'teams', 8000)
+  if (!search) {
+    await page.keyboard.press('Escape')
+    throw new SendError('Zoekveld voor emoji niet gevonden in Teams')
+  }
+  await search.fill(spec.search)
+  await sleep(800)
+  const option = page.locator('[role="dialog"] button, [role="menu"] button, [role="grid"] button, [role="gridcell"], [role="option"], [role="listbox"] button')
+  const n = await option.count()
+  let hit = null
+  for (let i = 0; i < Math.min(n, 60) && !hit; i++) {
+    const el = option.nth(i)
+    const label = await el
+      .evaluate((e) => [e.getAttribute('aria-label'), e.getAttribute('title'), e.querySelector('img[alt]')?.getAttribute('alt'), e.innerText].filter(Boolean).join(' | '))
+      .catch(() => '')
+    if (label.split(' | ').some((l) => spec.name.test(l.trim()) || l.trim() === item.reaction.emoji)) hit = el
+  }
+  if (!hit) {
+    await page.keyboard.press('Escape')
+    throw new SendError(`Emoji ${item.reaction.emoji} niet gevonden in "Meer reacties" van Teams`)
+  }
+  if (dryRun) {
+    await page.keyboard.press('Escape')
+    return log(`  [dry-run] ${item.reaction.emoji} gevonden in "Meer reacties"; zou nu klikken`)
+  }
+  await hit.click()
+}
+
+async function handleReaction(item, opts) {
+  const label = `${item.reaction.id} [${item.channel}] ${item.reaction.emoji} op "${String(item.reaction.messageText || '').slice(0, 40)}"`
+  log(`> emoji ${label}`)
+  const valid = validateReaction(item)
+  if (!valid.ok) {
+    log(`  x ${valid.error}`)
+    if (!opts.dryRun) {
+      try {
+        await reportReaction(item, 'failed', valid.error)
+      } catch {
+        /* volgende ronde */
+      }
+    }
+    return
+  }
+  if (!opts.dryRun) {
+    try {
+      await reportReaction(item, 'sending')
+    } catch (e) {
+      log(`  ! emoji-status 'sending' zetten mislukt, sla over: ${shortReason(e)}`)
+      return
+    }
+  }
+  let page
+  try {
+    const ctx = await getContext(opts)
+    page = await ctx.newPage()
+    const url = item.channel === 'teams' ? teamsWebUrl(item.target.url) : item.target.url
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT })
+    if (isLoginUrl(page.url(), item.channel)) throw new SendError(loginError(item.channel))
+    if (item.channel === 'teams') await reactTeams(page, item, opts)
+    else await reactSlack(page, item, opts)
+    if (!opts.dryRun) {
+      await reportReaction(item, 'sent')
+      log('  ✓ emoji gezet')
+    } else log("  ✓ [dry-run] klaar, emoji blijft 'queued'")
+  } catch (e) {
+    const reason = e instanceof SendError ? e.reason : `Onverwachte fout: ${shortReason(e)}`
+    log(`  x ${reason}`)
+    if (!opts.dryRun) await reportReaction(item, 'failed', reason)
+  } finally {
+    if (page) await page.close().catch(() => {})
+    lastUsed = Date.now()
+  }
+}
+
 // ---------- Eén reply afhandelen ----------
 
 async function handleReply(reply, opts) {
@@ -432,6 +633,18 @@ async function loop(opts) {
       }
     } catch (e) {
       log(`! ophalen mislukt: ${shortReason(e)} — probeer het straks opnieuw`)
+    }
+    try {
+      const reactions = await fetchQueuedReactions()
+      const todo = reactions.filter((r) => shouldReact(r, seen))
+      if (todo.length) log(`${todo.length} emoji om te zetten`)
+      for (const r of todo) {
+        if (stopping) break
+        await handleReaction(r, opts)
+        if (opts.dryRun) seen.add(r.reaction.id)
+      }
+    } catch (e) {
+      log(`! emoji ophalen mislukt: ${shortReason(e)} — probeer het straks opnieuw`)
     }
     if (context && Date.now() - lastUsed > IDLE_CLOSE_MS) await closeContext()
     if (opts.once) break

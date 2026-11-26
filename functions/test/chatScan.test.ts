@@ -127,7 +127,9 @@ describe('antwoorden-scan: Google Chat', () => {
       url: 'https://mail.google.com/mail/u/0/#chat/space/DM1',
       target: { space: 'spaces/DM1' },
     })
-    expect(dmCard.messages).toEqual([{ author: 'Anna de Vries', text: 'Heb je de cijfers al, voor het overleg van morgen?', at: '2026-11-17T09:00:00.000Z' }])
+    expect(dmCard.messages).toEqual([
+      { author: 'Anna de Vries', text: 'Heb je de cijfers al, voor het overleg van morgen?', at: '2026-11-17T09:00:00.000Z', id: expect.stringMatching(/^spaces\/DM1\/messages\//), reactions: [] },
+    ])
     const roomCard = replies.find((x) => x.externalId === 'spaces/ROOM1/threads/t1')!
     expect(roomCard).toMatchObject({ title: 'Team Wehkamp', who: 'Anna', projectId: 'wehkamp', target: { space: 'spaces/ROOM1', thread: 'spaces/ROOM1/threads/t1' } })
     expect(await ctx.repo.listSuggestions(UID)).toHaveLength(0)
@@ -144,6 +146,22 @@ describe('antwoorden-scan: Google Chat', () => {
     const cards = await dmCards(ctx)
     expect(cards).toHaveLength(1)
     expect(cards[0].messages.map((m) => m.text)).toEqual(['Heb je de cijfers al, voor het overleg van morgen?', 'En de planning?'])
+  })
+
+  it('neemt de emoji onder een bericht mee; een emoji van jou blijft als de jouwe herkend', async () => {
+    const d = data()
+    const m = d.messages['spaces/DM1'][0]
+    m.emojiReactionSummaries = [{ emoji: { unicode: '👍' }, reactionCount: 1 }, { emoji: { customEmoji: { emojiName: ':partyparrot:' } }, reactionCount: 2 }]
+    const ctx = scanSetup(d)
+    await runReplyScan(depsOf(ctx), UID)
+    const [card] = await dmCards(ctx)
+    expect(card.messages[0].reactions).toEqual([{ emoji: '👍', count: 1 }, { emoji: ':partyparrot:', count: 2 }])
+    // Nino zette 🎉 vanuit de app; de volgende scan ziet hem (zonder te zeggen van wie) en hij blijft de zijne.
+    await ctx.repo.saveReply(UID, { ...card, messages: [{ ...card.messages[0], reactions: [...card.messages[0].reactions!, { emoji: '🎉', count: 1, mine: true }] }] })
+    m.emojiReactionSummaries.push({ emoji: { unicode: '🎉' }, reactionCount: 1 })
+    await runReplyScan(depsOf(ctx), UID)
+    const [after] = await dmCards(ctx)
+    expect(after.messages[0].reactions).toContainEqual({ emoji: '🎉', count: 1, mine: true })
   })
 
   it('sluit aan op een kaart van Claude: naam, verzendadres, concept en uitleg blijven staan', async () => {

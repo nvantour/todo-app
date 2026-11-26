@@ -152,6 +152,41 @@ export interface ReplyMessage {
   at: string | null
   /** Van Nino zelf. */
   mine?: boolean
+  /**
+   * Id van het bericht in het bronsysteem, nodig om er een emoji op te zetten.
+   * gchat `spaces/X/messages/Y` · slack de ts (`1732612345.123456`) · teams het bericht-id uit Teams.
+   */
+  id?: string
+  /** Emoji-reacties op dit bericht. Ontbreekt = onbekend (niet gelezen); leeg = geen reacties. */
+  reactions?: ReplyReaction[]
+}
+
+/** Eén emoji onder een bericht, met hoe vaak hij gegeven is. */
+export interface ReplyReaction {
+  /** Het teken zelf (👍), of `:naam:` voor een eigen emoji van Slack of Chat. */
+  emoji: string
+  count: number
+  /** Nino zelf zit erbij. */
+  mine?: boolean
+}
+
+/** queued = wacht op de Mac mini (Teams/Slack) · sending = bezig · sent = staat erop · failed = mislukt (zie error) */
+export type ReactionStatus = 'queued' | 'sending' | 'sent' | 'failed'
+
+/** Een emoji die Nino vanuit de app op een bericht zet. Alleen de app maakt deze aan. */
+export interface ReactionRequest {
+  id: string
+  emoji: string
+  /** ReplyMessage.id van het bericht, als bekend. */
+  messageId: string | null
+  /** Om het bericht terug te vinden als er geen id is (Teams): begin van de tekst, afzender en tijd. */
+  messageText: string
+  messageAuthor: string
+  messageAt: string | null
+  status: ReactionStatus
+  error: string | null
+  createdAt: string
+  doneAt: string | null
 }
 
 /** Waar het antwoord heen gaat. Per kanaal gebruik je andere velden; zie docs/antwoorden.md. */
@@ -201,6 +236,8 @@ export interface Reply {
   sentAt: string | null
   createdAt: string
   updatedAt: string
+  /** Emoji die Nino vanuit de app op berichten van dit gesprek zet (nieuwste laatst). */
+  reactionQueue?: ReactionRequest[]
 }
 
 export interface AppData {

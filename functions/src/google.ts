@@ -5,6 +5,7 @@ import {
   GoogleReauthError,
   SCOPE_CALENDAR,
   SCOPE_CHAT_CREATE,
+  SCOPE_CHAT_REACT,
   SCOPE_CHAT_MESSAGES,
   SCOPE_CHAT_SPACES,
   SCOPE_GMAIL_MODIFY,
@@ -45,6 +46,8 @@ export interface GoogleStatus {
   mail?: boolean
   /** Antwoorden in Google Chat versturen (tab Antwoorden). */
   chatSend?: boolean
+  /** Emoji zetten in Google Chat (tab Antwoorden). */
+  chatReact?: boolean
   lastCalendarScan?: { at: string; found: number; created: number; error?: string }
   lastChatScan?: { at: string; found: number; created: number; error?: string }
 }
@@ -53,6 +56,7 @@ export const hasCalendar = (c: Pick<GoogleConnection, 'scopes'>) => c.scopes.inc
 export const hasChat = (c: Pick<GoogleConnection, 'scopes'>) => c.scopes.includes(SCOPE_CHAT_MESSAGES) && c.scopes.includes(SCOPE_CHAT_SPACES)
 
 export const hasChatSend = (c: Pick<GoogleConnection, 'scopes'>) => c.scopes.includes(SCOPE_CHAT_CREATE)
+export const hasChatReact = (c: Pick<GoogleConnection, 'scopes'>) => c.scopes.includes(SCOPE_CHAT_REACT)
 
 export const hasMail = (c: Pick<GoogleConnection, 'scopes'>) => c.scopes.includes(SCOPE_GMAIL_MODIFY) && c.scopes.includes(SCOPE_GMAIL_SETTINGS)
 
@@ -117,6 +121,7 @@ export class GoogleService {
       chat: hasChat(conn),
       mail: hasMail(conn),
       chatSend: hasChatSend(conn),
+      chatReact: hasChatReact(conn),
       lastCalendarScan: state.lastCalendarScan,
       lastChatScan: state.lastChatScan,
     }
@@ -173,6 +178,13 @@ export class GoogleService {
     const conn = await this.connection(uid)
     if (!hasChatSend(conn)) throw new HttpError(409, 'google_chat_send_scope', 'Versturen in Google Chat is nog niet toegestaan. Koppel Google opnieuw in Instellingen.')
     await (await this.api(uid)).createMessage(space, text, thread)
+  }
+
+  /** Emoji op een Chat-bericht zetten, als Nino zelf. Alleen aangeroepen na een klik in de app. */
+  async reactChat(uid: string, message: string, emoji: string): Promise<void> {
+    const conn = await this.connection(uid)
+    if (!hasChatReact(conn)) throw new HttpError(409, 'google_chat_react_scope', 'Emoji zetten in Google Chat is nog niet toegestaan. Koppel Google opnieuw in Instellingen.')
+    await (await this.api(uid)).createReaction(message, emoji)
   }
 
   async api(uid: string): Promise<GoogleApi> {

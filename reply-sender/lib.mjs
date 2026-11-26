@@ -219,3 +219,114 @@ export class SendError extends Error {
     this.afterSend = afterSend
   }
 }
+
+// ---------- Emoji (reacties) ----------
+
+/** De emoji die de app aanbiedt, met de naam in Slack. */
+export const SLACK_EMOJI = {
+  '👍': '+1',
+  '❤️': 'heart',
+  '😂': 'joy',
+  '🙏': 'pray',
+  '✅': 'white_check_mark',
+  '👀': 'eyes',
+  '🎉': 'tada',
+  '🙌': 'raised_hands',
+}
+
+/** Slack-naam van een emoji: uit de lijst, of `:naam:` (eigen emoji). Null = onbekend. */
+export function slackEmojiName(emoji) {
+  const e = String(emoji ?? '').trim()
+  if (SLACK_EMOJI[e]) return SLACK_EMOJI[e]
+  // Ook zonder het onzichtbare "toon als plaatje"-teken (❤ vs ❤️).
+  const bare = e.replace(/️/g, '')
+  for (const [k, v] of Object.entries(SLACK_EMOJI)) if (k.replace(/️/g, '') === bare) return v
+  const m = e.match(/^:([a-z0-9_+'-]+):$/i)
+  return m ? m[1] : null
+}
+
+/**
+ * Teams: de snelle reacties (in de balk die verschijnt als je over een bericht beweegt) en wat je
+ * in "Meer reacties" zoekt voor de rest. `name` = hoe de knop of het plaatje heet (Engels of Nederlands).
+ */
+export const TEAMS_EMOJI = {
+  '👍': { quick: /^(Like|Leuk|Vind ik leuk)$/i, search: 'thumbs up', name: /thumbs ?up|like|duim/i },
+  '❤️': { quick: /^(Heart|Hart)$/i, search: 'heart', name: /^(red )?heart$|^hart$/i },
+  '😂': { quick: /^(Laugh|Lachen)$/i, search: 'laugh', name: /laugh|tears of joy|lach/i },
+  '🙏': { quick: null, search: 'folded hands', name: /folded hands|pray|gevouwen handen|bid/i },
+  '✅': { quick: null, search: 'check mark', name: /check ?mark|vinkje|selectievakje/i },
+  '👀': { quick: null, search: 'eyes', name: /^eyes$|^ogen$/i },
+  '🎉': { quick: null, search: 'party', name: /party|tada|feest/i },
+  '🙌': { quick: null, search: 'raising hands', name: /rais(ed|ing) hands|handen omhoog|handen in de lucht/i },
+}
+
+export function teamsEmoji(emoji) {
+  const e = String(emoji ?? '').trim()
+  if (TEAMS_EMOJI[e]) return TEAMS_EMOJI[e]
+  const bare = e.replace(/️/g, '')
+  for (const [k, v] of Object.entries(TEAMS_EMOJI)) if (k.replace(/️/g, '') === bare) return v
+  return null
+}
+
+/** Welke emoji-verzoeken pakken we op: alleen wachtende, op Teams/Slack. */
+export function shouldReact(item, seenIds = new Set()) {
+  if (!item || typeof item !== 'object' || !item.reaction?.id) return false
+  if (seenIds.has(item.reaction.id)) return false
+  if (!CHANNELS.includes(item.channel)) return false
+  return item.reaction.status === 'queued'
+}
+
+/** Genoeg informatie om de emoji te zetten? Geeft een Nederlandse reden terug. */
+export function validateReaction(item) {
+  const url = item.target?.url
+  if (!url) return { ok: false, error: 'Geen link naar het gesprek (target.url ontbreekt)' }
+  const check = checkTargetUrl(url, item.channel)
+  if (!check.ok) return check
+  const r = item.reaction
+  if (item.channel === 'slack' && !slackEmojiName(r.emoji)) return { ok: false, error: `Deze emoji ken ik niet in Slack (${r.emoji})` }
+  if (item.channel === 'teams' && !teamsEmoji(r.emoji)) return { ok: false, error: `Deze emoji kan ik niet zetten in Teams (${r.emoji})` }
+  if (!r.messageId && !normalizeText(r.messageText)) return { ok: false, error: 'Onbekend op welk bericht de emoji moet' }
+  return { ok: true }
+}
+
+const words = (t) =>
+  normalizeText(t)
+    .toLowerCase()
+    .replace(/<[^>]*>/g, ' ') // Slack: <@U123>, <https://…|tekst>
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2)
+
+/** Hoeveel van de woorden uit `want` staan in `have` (0..1). */
+export function wordScore(have, want) {
+  const w = words(want)
+  if (!w.length) return 0
+  const h = new Set(words(have))
+  return w.filter((x) => h.has(x)).length / w.length
+}
+
+/**
+ * Slack: welk bericht uit de geschiedenis hoort bij het verzoek? Op id (ts) als dat er is; anders het bericht
+ * dat qua tijd (binnen 3 minuten) en tekst het best past. Null = niet zeker genoeg.
+ */
+export function pickSlackMessage(messages, req) {
+  if (req.messageId) return messages.find((m) => m.ts === req.messageId)?.ts ?? (/^\d+\.\d+$/.test(req.messageId) ? req.messageId : null)
+  const at = req.messageAt ? Date.parse(req.messageAt) / 1000 : null
+  let best = null
+  for (const m of messages) {
+    const near = at == null || Math.abs(Number(m.ts) - at) <= 180
+    if (!near) continue
+    const score = wordScore(m.text ?? '', req.messageText)
+    if (score >= (at == null ? 0.7 : 0.5) && (!best || score > best.score)) best = { ts: m.ts, score }
+  }
+  return best?.ts ?? null
+}
+
+/** Teams: past de tekst van een bericht op het gezochte bericht? */
+export function teamsTextMatches(have, want) {
+  const h = normalizeText(have)
+  const w = normalizeText(want)
+  if (!w) return false
+  if (h.includes(w.slice(0, 120))) return true
+  return wordScore(have, want) >= 0.8
+}

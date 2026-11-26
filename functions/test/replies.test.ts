@@ -179,3 +179,107 @@ describe('antwoorden: Airtable-reactie versturen', () => {
     expect(JSON.stringify(res.body)).toContain('data.recordComments:write')
   })
 })
+
+describe('antwoorden: emoji', () => {
+  const queued = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    emoji: '👍',
+    messageId: null,
+    messageText: 'Wanneer kan het?',
+    messageAuthor: 'Rick',
+    messageAt: '2026-11-18T09:00:00Z',
+    status: 'queued' as const,
+    error: null,
+    createdAt: '2026-11-18T10:00:00Z',
+    doneAt: null,
+    ...over,
+  })
+
+  async function withQueue(status: Reply['status'] = 'open') {
+    const ctx = await withToken()
+    await call(ctx.deps, 'POST', '/replies', { replies: [incoming()] }, ctx.auth)
+    const [reply] = await ctx.repo.listReplies(UID)
+    await ctx.repo.saveReply(UID, { ...reply, status, reactionQueue: [queued('q1')] })
+    return { ...ctx, reply }
+  }
+
+  it('Claude kan reacties en bericht-id meegeven; een ronde zonder reacties laat ze staan', async () => {
+    const ctx = await withToken()
+    const msg = { author: 'Rick', text: 'Wanneer kan het?', at: '2026-11-18T09:00:00Z', id: '1700000000.0001', reactions: [{ emoji: '👍', count: 2, mine: true }] }
+    await call(ctx.deps, 'POST', '/replies', { replies: [incoming({ messages: [msg] })] }, ctx.auth)
+    // De scan van meldingsmails kent geen id en geen reacties.
+    await call(ctx.deps, 'POST', '/replies', { replies: [incoming({ messages: [{ author: 'Rick', text: 'Wanneer kan het?', at: '2026-11-18T09:00:00Z' }] })] }, ctx.auth)
+    const [r] = await ctx.repo.listReplies(UID)
+    expect(r.messages[0]).toMatchObject({ id: '1700000000.0001', reactions: [{ emoji: '👍', count: 2, mine: true }] })
+  })
+
+  it('verzendscript: wachtrij ophalen, ook van een afgehandelde kaart', async () => {
+    const { deps, auth, reply } = await withQueue('dismissed')
+    const res = await call(deps, 'GET', '/reactions', undefined, auth, { status: 'queued', channel: 'teams,slack' })
+    const list = (res.body as { reactions: { replyId: string; reaction: { id: string } }[] }).reactions
+    expect(list.map((x) => [x.replyId, x.reaction.id])).toEqual([[reply.id, 'q1']])
+  })
+
+  it('verzendscript: wachtend → bezig → gezet; de emoji komt onder het bericht', async () => {
+    const { deps, auth, reply, repo } = await withQueue()
+    const path = `/replies/${reply.id}/reactions/q1/result`
+    expect((await call(deps, 'POST', path, { status: 'sent' }, auth)).status).toBe(409)
+    expect((await call(deps, 'POST', path, { status: 'sending' }, auth)).status).toBe(200)
+    expect((await call(deps, 'POST', path, { status: 'sent' }, auth)).status).toBe(200)
+    const r = (await repo.getReply(UID, reply.id))!
+    expect(r.reactionQueue![0]).toMatchObject({ status: 'sent', error: null })
+    expect(r.messages[0].reactions).toEqual([{ emoji: '👍', count: 1, mine: true }])
+    expect(r.updatedAt).toBe(reply.updatedAt)
+    expect((await call(deps, 'POST', `/replies/${reply.id}/reactions/bestaat-niet/result`, { status: 'sending' }, auth)).status).toBe(404)
+  })
+
+  it('mislukt op een afgehandelde kaart: kaart gaat weer open met de reden', async () => {
+    const { deps, auth, reply, repo } = await withQueue('dismissed')
+    await call(deps, 'POST', `/replies/${reply.id}/reactions/q1/result`, { status: 'failed', error: 'Emoji-knop niet gevonden' }, auth)
+    const r = (await repo.getReply(UID, reply.id))!
+    expect(r.status).toBe('open')
+    expect(r.reactionQueue![0]).toMatchObject({ status: 'failed', error: 'Emoji-knop niet gevonden' })
+  })
+
+  describe('Google Chat', () => {
+    async function gchat() {
+      const ctx = await withToken()
+      const reacted: unknown[] = []
+      ctx.deps.google = { reactChat: async (...args: unknown[]) => void reacted.push(args) } as unknown as GoogleService
+      await call(ctx.deps, 'POST', '/replies', { replies: [incoming({ channel: 'gchat', externalId: 'spaces/A', target: { space: 'spaces/A' } })] }, ctx.auth)
+      const [reply] = await ctx.repo.listReplies(UID)
+      return { ...ctx, reply, reacted }
+    }
+
+    it('alleen vanuit de app, en alleen op een bericht uit dit gesprek', async () => {
+      const { deps, auth, reply, reacted } = await gchat()
+      const path = `/replies/${reply.id}/react`
+      expect((await call(deps, 'POST', path, { messageId: 'spaces/A/messages/m1', emoji: '👍' }, auth)).status).toBe(403)
+      expect((await call(deps, 'POST', path, { messageId: 'spaces/ANDER/messages/m1', emoji: '👍' })).status).toBe(400)
+      expect((await call(deps, 'POST', path, { messageId: 'spaces/A/messages/m1', emoji: '🎉' })).status).toBe(200)
+      expect(reacted).toEqual([[UID, 'spaces/A/messages/m1', '🎉']])
+    })
+
+    it('Teams en Slack gaan niet via de server', async () => {
+      const ctx = await withToken()
+      await call(ctx.deps, 'POST', '/replies', { replies: [incoming()] }, ctx.auth)
+      const [reply] = await ctx.repo.listReplies(UID)
+      expect((await call(ctx.deps, 'POST', `/replies/${reply.id}/react`, { messageId: 'spaces/A/messages/m1', emoji: '👍' })).status).toBe(400)
+    })
+  })
+})
+
+describe('Google Chat-API: emoji', () => {
+  it('409 (staat er al) telt als gelukt; een andere fout niet', async () => {
+    const { createGoogleApi } = await import('../src/googleApi')
+    const calls: string[] = []
+    const ok409 = createGoogleApi('t', (async (url: string) => {
+      calls.push(url)
+      return new Response(JSON.stringify({ error: { message: 'exists' } }), { status: 409 })
+    }) as typeof fetch)
+    await expect(ok409.createReaction('spaces/A/messages/m1', '👍')).resolves.toBeUndefined()
+    expect(calls).toEqual(['https://chat.googleapis.com/v1/spaces/A/messages/m1/reactions'])
+    const bad = createGoogleApi('t', (async () => new Response(JSON.stringify({ error: { message: 'nope' } }), { status: 403 })) as typeof fetch)
+    await expect(bad.createReaction('spaces/A/messages/m1', '👍')).rejects.toThrow(/weigerde de emoji/)
+  })
+})

@@ -85,6 +85,11 @@ const replyMessageSchema = z.object({
   text: z.string().max(10_000),
   at: z.string().max(40).nullable().optional().transform((v) => v ?? null),
   mine: z.boolean().optional(),
+  id: z.string().trim().min(1).max(300).optional(),
+  reactions: z
+    .array(z.object({ emoji: z.string().trim().min(1).max(64), count: z.number().int().min(1).max(10_000), mine: z.boolean().optional() }))
+    .max(50)
+    .optional(),
 })
 
 export const incomingReplySchema = z.object({
@@ -120,5 +125,17 @@ export const replyResultSchema = z.object({
 })
 
 export const replySendSchema = z.object({ text: z.string().trim().min(1).max(10_000) })
+
+/** Alleen de app: emoji op een Google Chat-bericht. */
+export const replyReactSchema = z.object({
+  messageId: z.string().regex(/^spaces\/[^/]+\/messages\/[^/]+$/, 'Onbekend bericht'),
+  emoji: z.string().trim().min(1).max(16),
+})
+
+/** Alleen het verzendscript: voortgang van een emoji in Teams of Slack. */
+export const reactionResultSchema = z.object({
+  status: z.enum(['sending', 'sent', 'failed']),
+  error: z.string().max(500).optional(),
+})
 
 export type IncomingReplyInput = z.infer<typeof incomingReplySchema>

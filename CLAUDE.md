@@ -87,6 +87,7 @@ Het volledige contract voor koppelingen staat in `docs/koppelingen.md`; serverin
 - De kaart: concept bovenin, daaronder het gesprek. Mail wordt vers uit Gmail getoond (opmaak, afbeeldingen, nieuwste bovenaan) met de handtekening onder het tekstvak (`src/views/replies/`, kader gedeeld met de Mail-tab via `src/mail/render.ts`). De handtekening komt uit Gmail en is alleen gevuld als hij daar als standaard voor nieuwe e-mails is gekozen.
 - Elke open kaart hoort een concept te hebben: `list_replies` geeft `hasDraft`, met `details: true` de berichten; Claude vult aan via `save_reply_drafts`. Dat doet de geplande taak `antwoorden-concepten` in de Claude-app (werkdagen elk uur om :05).
 - Versturen: mail door de app (Gmail), Google Chat door de server (scope `chat.messages.create`, vraagt één keer opnieuw koppelen), Teams/Slack door `reply-sender/` op de Mac mini (Playwright, eigen ingelogd profiel).
+- Emoji (sinds 2026-11-26): onder elk chatbericht de emoji erop, en een knop om er zelf een te zetten; daarna vraagt de kaart "Klaar met dit gesprek?". Google Chat leest de scan en zet de server (scope `chat.messages.reactions.create`); Teams en Slack leest Claude en zet het verzendscript op de Mac mini (wachtrij `reactionQueue` op de kaart). Details in `docs/antwoorden.md` → "Emoji".
 
 ## Stand (2026-11-18)
 

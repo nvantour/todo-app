@@ -1,7 +1,8 @@
-import type { Reply } from '../model/types'
+import type { Reply, ReplyMessage } from '../model/types'
 import { store } from './store'
 import { apiCall, hasServer } from './server'
-import { nowISO } from './logic'
+import { newId, nowISO } from './logic'
+import { buildReaction, enqueue, stepReaction } from './replies'
 
 /**
  * Het vinkje op een kaart. Nino keurt de tekst goed; daarna:
@@ -57,3 +58,34 @@ export const dismissReply = (reply: Reply) => store.updateReply(reply.id, { stat
 
 /** Mislukt of per ongeluk goedgekeurd: terug naar open, zodat Nino opnieuw kan kiezen. */
 export const reopenReply = (reply: Reply) => store.updateReply(reply.id, { status: 'open', error: null, approvedAt: null })
+
+/**
+ * Emoji op een bericht zetten. Alleen deze klik in de app zet het in gang (Claude kan het niet).
+ * - Google Chat: de server zet de emoji meteen, met de Google-koppeling.
+ * - Teams en Slack: het verzoek komt in de wachtrij van de kaart; het verzendscript op de Mac mini zet hem.
+ */
+export async function reactToMessage(reply: Reply, message: ReplyMessage, emoji: string): Promise<void> {
+  const req = buildReaction(reply, message, emoji, newId(), nowISO())
+  const current = () => store.getSnapshot().replies.find((r) => r.id === reply.id) ?? reply
+  store.updateReply(reply.id, { reactionQueue: enqueue(current().reactionQueue, req) })
+  if (reply.channel !== 'gchat') return
+
+  const finish = (status: 'sent' | 'failed', error?: string) => {
+    const next = stepReaction(current(), req.id, status, nowISO(), error)
+    if (next) store.updateReply(reply.id, { reactionQueue: next.reactionQueue, messages: next.messages, status: next.status })
+  }
+  // Testmodus zonder server: doen alsof, zodat de kaart te testen is.
+  if (!hasServer()) return finish('sent')
+  try {
+    await apiCall(`/replies/${encodeURIComponent(reply.id)}/react`, { method: 'POST', body: JSON.stringify({ messageId: req.messageId, emoji }) })
+    finish('sent')
+  } catch (e) {
+    finish('failed', e instanceof Error ? e.message : 'Emoji zetten mislukt.')
+  }
+}
+
+/** Een mislukte emoji weghalen van de kaart. */
+export function forgetReaction(reply: Reply, reactionId: string): void {
+  const now = store.getSnapshot().replies.find((r) => r.id === reply.id) ?? reply
+  store.updateReply(reply.id, { reactionQueue: (now.reactionQueue ?? []).filter((q) => q.id !== reactionId) })
+}

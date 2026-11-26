@@ -8,6 +8,7 @@ import { isInternal } from '../lib/sources'
 import { Link } from 'react-router-dom'
 import { LiveMailThread, SignaturePreview } from './replies/mailLive'
 import { useMailThread, useSignature } from './replies/mailData'
+import { Reactions } from './replies/Reactions'
 
 const CHANNEL_ICON: Record<ReplyChannel, LucideIcon> = { mail: Mail, gchat: MessageSquare, slack: Hash, teams: Users, airtable: Database }
 
@@ -62,6 +63,8 @@ export function RepliesView() {
 function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name: string; color: string } }) {
   const [text, setText] = useState(reply.draft)
   const [showAll, setShowAll] = useState(false)
+  // Net een emoji gezet: vragen of het gesprek daarmee klaar is.
+  const [reacted, setReacted] = useState<string | null>(null)
   const box = useRef<HTMLTextAreaElement>(null)
   const Icon = CHANNEL_ICON[reply.channel]
   const locked = reply.status === 'approved' || reply.status === 'sending' || reply.status === 'sent'
@@ -169,6 +172,26 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
       {isMail && editable && <SignaturePreview sig={signature} />}
       </div>
 
+      {reacted && editable && (
+        <div className="reply__askdone" role="status">
+          <span>
+            {reacted} {reply.channel === 'gchat' ? 'staat erop.' : 'gaat via de Mac mini.'} Klaar met dit gesprek?
+          </span>
+          <button
+            className="btn is-primary"
+            onClick={() => {
+              setReacted(null)
+              dismissReply(reply)
+            }}
+          >
+            <Check size={15} strokeWidth={2.5} /> Afhandelen
+          </button>
+          <button className="btn" onClick={() => setReacted(null)}>
+            Ik antwoord ook
+          </button>
+        </div>
+      )}
+
       <footer className="reply__foot">
         <Status reply={reply} />
         {reply.status === 'open' || reply.status === 'failed' ? (
@@ -207,6 +230,7 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
                 <b>{m.mine ? 'Jij' : m.author}</b> {time(m.at)}
               </div>
               <div className="reply__text">{m.text}</div>
+              {!isMail && <Reactions reply={reply} message={m} onReacted={setReacted} />}
             </div>
           ))}
           {isMail && more}
