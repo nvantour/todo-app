@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Database, ExternalLink, Hash, ListPlus, Mail, MessageSquare, RotateCcw, Users, X, type LucideIcon } from 'lucide-react'
+import { Check, ExternalLink, ListPlus, RotateCcw, X } from 'lucide-react'
 import type { Reply, ReplyChannel } from '../model/types'
 import { store, useAppData } from '../data/store'
 import { CHANNELS, CHANNEL_NAME, SENT_BY_APP, visibleReplies } from '../data/replies'
@@ -8,9 +8,8 @@ import { isInternal } from '../lib/sources'
 import { Link } from 'react-router-dom'
 import { LiveMailThread, SignaturePreview } from './replies/mailLive'
 import { useMailThread, useSignature } from './replies/mailData'
-import { Reactions } from './replies/Reactions'
-
-const CHANNEL_ICON: Record<ReplyChannel, LucideIcon> = { mail: Mail, gchat: MessageSquare, slack: Hash, teams: Users, airtable: Database }
+import { BrandMark, ChatThread } from './replies/ChannelLook'
+import { brandName, composeLabel, whereLabel } from './replies/channelText'
 
 const time = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
@@ -31,7 +30,7 @@ export function RepliesView() {
     <>
       <header className="view-header">
         <h1>Antwoorden</h1>
-        <p>Wie wacht er op jou. Bovenaan elk gesprek staat het antwoord: pas het aan en verstuur met het vinkje.</p>
+        <p>Wie wacht er op jou. Bij elk gesprek staat een antwoord klaar: pas het aan en verstuur met het vinkje.</p>
       </header>
 
       <div className="seg reply-filter" role="group" aria-label="Kanaal">
@@ -66,7 +65,6 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
   // Net een emoji gezet: vragen of het gesprek daarmee klaar is.
   const [reacted, setReacted] = useState<string | null>(null)
   const box = useRef<HTMLTextAreaElement>(null)
-  const Icon = CHANNEL_ICON[reply.channel]
   const locked = reply.status === 'approved' || reply.status === 'sending' || reply.status === 'sent'
   // Teams en Slack gaan via het verzendscript; dat heeft de link naar het juiste gesprek nodig.
   const noAddress = (reply.channel === 'teams' || reply.channel === 'slack') && !reply.target.url
@@ -125,44 +123,14 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
     dismissReply(reply)
   }
 
-  return (
-    <article className={`reply is-${reply.status}`} aria-label={`${CHANNEL_NAME[reply.channel]}: ${reply.title}`}>
-      <header className="reply__head">
-        <span className="reply__channel" title={CHANNEL_NAME[reply.channel]}>
-          <Icon size={14} />
-        </span>
-        <div className="reply__who">
-          <strong>{reply.who || reply.title}</strong>
-          <span>
-            {reply.who ? reply.title : CHANNEL_NAME[reply.channel]}
-            {projectName && (
-              <span className="tag" style={{ '--c': projectName.color } as React.CSSProperties}>
-                <i />
-                {projectName.name}
-              </span>
-            )}
-          </span>
-        </div>
-        {reply.url &&
-          (isInternal(reply.url) ? (
-            <Link className="icon-btn" to={reply.url} title="Open het gesprek" aria-label="Open het gesprek">
-              <ExternalLink size={15} />
-            </Link>
-          ) : (
-            <a className="icon-btn" href={reply.url} target="_blank" rel="noreferrer" title="Open het gesprek" aria-label="Open het gesprek">
-              <ExternalLink size={15} />
-            </a>
-          ))}
-      </header>
-
-      {reply.reason && <p className="reply__reason">{reply.reason}</p>}
-
-      <div className={`reply__compose${isMail && editable ? ' is-mail' : ''}`}>
+  const compose = (
+    <div className={`reply__compose${isMail && editable ? ' is-mail' : ''}${isMail ? '' : ` is-chat is-${reply.channel}`}`}>
+      {!isMail && !locked && !noAddress && <div className="reply__composelabel">{composeLabel(reply)}</div>}
       <textarea
         ref={box}
         className="reply__draft"
         aria-label="Jouw antwoord"
-        placeholder={noAddress ? `Antwoorden doe je in ${CHANNEL_NAME[reply.channel]} zelf: open het gesprek met de knop rechtsboven.` : 'Nog geen concept. Typ je antwoord, of laat Claude er een schrijven met /chats-ophalen.'}
+        placeholder={noAddress ? `Antwoorden doe je in ${CHANNEL_NAME[reply.channel]} zelf: open het gesprek met de knop rechtsboven.` : `${isMail ? 'Nog geen concept' : composeLabel(reply)}. Typ je antwoord, of laat Claude er een schrijven met /chats-ophalen.`}
         value={text}
         disabled={locked}
         onChange={(e) => setText(e.target.value)}
@@ -170,7 +138,50 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
         rows={2}
       />
       {isMail && editable && <SignaturePreview sig={signature} />}
+    </div>
+  )
+
+  return (
+    <article className={`reply is-${reply.status} ch-${reply.channel}`} aria-label={`${CHANNEL_NAME[reply.channel]}: ${reply.title}`}>
+      <header className="reply__bar">
+        <span className="reply__brand">
+          <BrandMark channel={reply.channel} />
+          <b>{brandName(reply.channel)}</b>
+        </span>
+        {reply.title && (
+          <span className="reply__where" title={reply.title}>
+            {whereLabel(reply)}
+          </span>
+        )}
+        {reply.url &&
+          (isInternal(reply.url) ? (
+            <Link className="reply__open" to={reply.url} title="Open het gesprek" aria-label="Open het gesprek">
+              <ExternalLink size={15} />
+            </Link>
+          ) : (
+            <a className="reply__open" href={reply.url} target="_blank" rel="noreferrer" title={`Open in ${CHANNEL_NAME[reply.channel]}`} aria-label={`Open in ${CHANNEL_NAME[reply.channel]}`}>
+              <ExternalLink size={15} />
+            </a>
+          ))}
+      </header>
+
+      <div className="reply__head">
+        <div className="reply__who">
+          <strong>{reply.who || reply.title}</strong>
+          {projectName && (
+            <span className="tag" style={{ '--c': projectName.color } as React.CSSProperties}>
+              <i />
+              {projectName.name}
+            </span>
+          )}
+        </div>
       </div>
+
+      {reply.reason && <p className="reply__reason">{reply.reason}</p>}
+
+      {!isMail && <ChatThread reply={reply} messages={messages} more={more} onReacted={setReacted} />}
+
+      {compose}
 
       {reacted && editable && (
         <div className="reply__askdone" role="status">
@@ -218,24 +229,23 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
         ) : null}
       </footer>
 
-      {live ? (
-        <LiveMailThread live={live} />
-      ) : (
-        <div className={`reply__thread${isMail ? ' is-mail' : ''}`}>
-          {isMail && <div className="reply__threadhead">Eerdere mails</div>}
-          {!isMail && more}
-          {messages.map((m, i) => (
-            <div key={i} className={`reply__msg${m.mine ? ' is-mine' : ''}`}>
-              <div className="reply__meta">
-                <b>{m.mine ? 'Jij' : m.author}</b> {time(m.at)}
+      {isMail &&
+        (live ? (
+          <LiveMailThread live={live} />
+        ) : (
+          <div className="reply__thread is-mail">
+            <div className="reply__threadhead">Eerdere mails</div>
+            {messages.map((m, i) => (
+              <div key={i} className={`reply__msg${m.mine ? ' is-mine' : ''}`}>
+                <div className="reply__meta">
+                  <b>{m.mine ? 'Jij' : m.author}</b> {time(m.at)}
+                </div>
+                <div className="reply__text">{m.text}</div>
               </div>
-              <div className="reply__text">{m.text}</div>
-              {!isMail && <Reactions reply={reply} message={m} onReacted={setReacted} />}
-            </div>
-          ))}
-          {isMail && more}
-        </div>
-      )}
+            ))}
+            {more}
+          </div>
+        ))}
     </article>
   )
 }
@@ -251,6 +261,7 @@ function Status({ reply }: { reply: Reply }) {
     case 'failed':
       return <span className="reply__status is-bad">Mislukt: {reply.error ?? 'onbekende fout'}</span>
     default:
-      return <span className="reply__status">{CHANNEL_NAME[reply.channel]}</span>
+      // Waar het gesprek staat, staat al in de balk bovenaan.
+      return <span className="reply__status" />
   }
 }

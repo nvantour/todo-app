@@ -2129,22 +2129,13 @@ button.check.is-small::after {
   gap: 10px;
 }
 
-.reply__channel {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  flex: none;
-  border-radius: 8px;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
 .reply__who {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
 }
 
 .reply__who strong {
@@ -2152,15 +2143,355 @@ button.check.is-small::after {
   font-weight: 600;
 }
 
-.reply__who > span {
+/*
+ * Per tool een eigen look (zie views/replies/ChannelLook.tsx): een balk in de kleur van de tool bovenaan,
+ * berichten in de stijl van die tool, en de knoppen en focus in de merkkleur. De lichte balken mengen de
+ * merkkleur met het thema, zodat ze ook in donker werken.
+ */
+.reply {
+  --bar-bg: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  --bar-ink: var(--ink);
+  --bar-sep: color-mix(in srgb, currentColor 30%, transparent);
+  --mention-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+  --mention-ink: var(--accent-text);
+  --chat-font: var(--font);
+  --av: 32px;
+  --av-r: 50%;
+}
+
+.reply[class*='ch-'] {
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  --accent-text: color-mix(in srgb, var(--accent) 78%, var(--ink));
+  --accent-ink: #fff;
+}
+
+.reply.ch-gchat {
+  --accent: #0b57d0;
+  --chat-font: 'Google Sans Text', 'Google Sans', Roboto, Arial, system-ui, sans-serif;
+}
+
+.reply.ch-mail {
+  --accent: #0b57d0;
+}
+
+.reply.ch-slack {
+  --accent: #007a5a;
+  --bar-bg: #4a154b;
+  --bar-ink: #fff;
+  --mention-bg: rgba(29, 155, 209, 0.14);
+  --mention-ink: #1d9bd1;
+  --chat-font: Lato, 'Slack-Lato', system-ui, -apple-system, sans-serif;
+  --av: 36px;
+  --av-r: 8px;
+}
+
+.reply.ch-teams {
+  --accent: #5b5fc7;
+  --bar-bg: #5b5fc7;
+  --bar-ink: #fff;
+  --mention-bg: transparent;
+  --chat-font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.reply.ch-airtable {
+  --accent: #166ee1;
+  --bar-bg: #166ee1;
+  --bar-ink: #fff;
+  --av: 26px;
+}
+
+.reply__bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--ink-3);
+  gap: 10px;
+  margin: -14px -16px 12px;
+  padding: 7px 8px 7px 14px;
+  border-radius: 13px 13px 0 0;
+  background: var(--bar-bg);
+  color: var(--bar-ink);
   font-size: 13px;
+}
+
+.reply__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  white-space: nowrap;
+}
+
+.reply__brand svg {
+  flex: none;
+}
+
+/* Op een gekleurde balk staat het merkteken op een wit vlakje, zoals een app-icoon. */
+.ch-airtable .reply__brand svg,
+.ch-slack .reply__brand svg {
+  padding: 2px;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.reply__brand b {
+  font-weight: 600;
+}
+
+.reply__where {
+  flex: 1;
+  min-width: 0;
+  padding-left: 10px;
+  border-left: 1px solid var(--bar-sep);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  opacity: 0.9;
+}
+
+.reply__open {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  border-radius: var(--r-sm);
+  color: inherit;
+}
+
+.reply__open:hover,
+.reply__open:focus-visible {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+/* Chatberichten: avatar links, naam + tijd, tekst; per tool andere maten en vormen. */
+.reply__thread.is-chat {
+  margin: 12px 0 0;
+  padding: 0;
+  border-left: 0;
+  gap: 2px;
+  font-family: var(--chat-font);
+}
+
+.cmsg {
+  display: grid;
+  grid-template-columns: var(--av) minmax(0, 1fr);
+  column-gap: 10px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: var(--r-sm);
+}
+
+.cmsg.is-grouped {
+  padding-top: 0;
+}
+
+.cmsg__avatar {
+  display: grid;
+  place-items: center;
+  width: var(--av);
+  height: var(--av);
+  border-radius: var(--av-r);
+  color: #fff;
+  font-family: var(--font);
+  font-size: calc(var(--av) * 0.38);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.cmsg__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cmsg__meta b {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cmsg__meta time {
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.cmsg__text {
+  font-size: 14.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cmsg__mention {
+  padding: 0 2px;
+  border-radius: 4px;
+  background: var(--mention-bg);
+  color: var(--mention-ink);
+  font-weight: 500;
+}
+
+.cmsg .reactions:empty {
+  display: none;
+}
+
+.reply__thread.is-chat > .reply__more {
+  margin-bottom: 4px;
+}
+
+/* Google Chat: ronde avatars, rustige naam, emoji in grijsblauwe pillen. */
+.ch-gchat .cmsg__meta b {
+  font-weight: 500;
+}
+
+.ch-gchat .reaction {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--accent) 8%, var(--sidebar));
+}
+
+/* Slack: vierkante avatars, vette naam, regel licht op bij aanwijzen. */
+.ch-slack .cmsg__meta b {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.ch-slack .cmsg:hover {
+  background: var(--hover);
+}
+
+.ch-slack .reaction.is-mine {
+  border-color: #1d9bd1;
+  background: rgba(29, 155, 209, 0.12);
+  color: #1d9bd1;
+}
+
+/* Teams: berichten in ballonnen op een grijs vlak, die van jou rechts in lichtpaars. */
+.reply__thread.is-chat.is-teams {
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--sidebar);
+  gap: 4px;
+}
+
+.ch-teams .cmsg {
+  margin: 0;
+  padding: 2px 0;
+}
+
+.ch-teams .cmsg__body {
+  justify-self: start;
+  max-width: 100%;
+  padding: 7px 12px 8px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* Teams: de emoji-knop pas bij aanwijzen, anders worden de ballonnen hoog. */
+@media (hover: hover) {
+  .ch-teams .cmsg:not(:hover) .reactions:not(:has(.reaction, [aria-expanded='true'])) {
+    display: none;
+  }
+}
+
+.ch-teams .cmsg__meta b {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+.ch-teams .cmsg__mention {
+  padding: 0;
+  font-weight: 600;
+}
+
+.ch-teams .cmsg.is-mine {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ch-teams .cmsg.is-mine .cmsg__avatar,
+.ch-teams .cmsg.is-mine .cmsg__gutter {
+  display: none;
+}
+
+.ch-teams .cmsg.is-mine .cmsg__body {
+  justify-self: end;
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
+
+.ch-teams .cmsg.is-mine .cmsg__meta b {
+  display: none;
+}
+
+/* Airtable: reacties onder een record, klein en zakelijk, vermeldingen als blauwe label. */
+.reply__thread.is-chat.is-airtable {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.cthread__head {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.ch-airtable .cmsg__meta b {
+  font-size: 13px;
+}
+
+.ch-airtable .cmsg__text {
+  font-size: 13.5px;
+}
+
+.ch-airtable .cmsg__mention {
+  padding: 1px 4px;
+}
+
+/* Het concept als het invoerveld van de tool. */
+.reply__compose.is-chat {
+  margin-top: 12px;
+  font-family: var(--chat-font);
+}
+
+.reply__composelabel {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.reply__compose.is-chat .reply__draft {
+  margin-top: 0;
+  font-family: inherit;
+}
+
+.reply__compose.is-gchat .reply__draft {
+  border-color: transparent;
+  border-radius: 20px;
+  padding: 11px 16px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--sidebar));
+}
+
+.reply__compose.is-slack .reply__draft {
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.reply__compose.is-teams .reply__draft {
+  border-color: transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: 4px;
+  background: var(--sidebar);
+}
+
+.reply__compose.is-teams .reply__draft:focus {
+  outline: 0;
+  border-bottom-color: var(--accent);
+}
+
+.reply__compose.is-airtable .reply__draft {
+  border-radius: 6px;
 }
 
 .reply__reason {
