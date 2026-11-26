@@ -11,6 +11,7 @@ import { expire, getToken } from './gmail/auth';
 
 export interface Reminder {
   id: string;          // id van de agenda-afspraak
+  ids: string[];       // alle afspraken van deze thread; hoort er één te zijn, dubbele tellen als één (zie perThread)
   account: string; threadId: string; at: number;
   subject: string; who: string;
   fired: boolean;      // afgegaan: thread staat weer in Nieuw met een geel label, tot Klaar
@@ -38,11 +39,27 @@ function toReminder(account: string, e: Event): Reminder | null {
   const when = e.start?.dateTime ?? e.start?.date;
   if (!threadId || !when || e.extendedProperties?.private?.ecDone === '1') return null;
   return {
-    id: e.id, account, threadId, at: Date.parse(when),
+    id: e.id, ids: [e.id], account, threadId, at: Date.parse(when),
     subject: (e.summary ?? '').replace(/^Herinnering:\s*/, '') || '(geen onderwerp)',
     who: e.extendedProperties?.private?.ecWho ?? '',
     fired: e.extendedProperties?.private?.ecFired === '1',
   };
+}
+
+/**
+ * Eén herinnering per thread. Staan er twee afspraken voor dezelfde thread in de agenda (twee keer
+ * geklikt, of Claude zette er een naast), dan tellen die als één. Anders wordt alleen de eerste als
+ * afgegaan gemarkeerd en gaat de tweede elke halve minuut opnieuw af (bug van 2026-11-26).
+ */
+export function perThread(list: Reminder[], now = Date.now()): Reminder[] {
+  const by = new Map<string, Reminder[]>();
+  for (const r of list) by.set(r.threadId, [...(by.get(r.threadId) ?? []), r]);
+  return [...by.values()].map((g) => {
+    const sorted = [...g].sort((a, b) => a.at - b.at);
+    const next = sorted.find((r) => !r.fired && r.at > now);  // er staat er nog een voor later
+    const main = next ?? sorted[sorted.length - 1];
+    return { ...main, ids: g.flatMap((r) => r.ids), fired: next ? false : g.some((r) => r.fired) };
+  });
 }
 
 /** Herinneringen van de afgelopen 60 dagen en later ophalen (afgehandelde tellen niet mee). */
@@ -52,7 +69,7 @@ export async function load(account: string) {
     timeMin: new Date(Date.now() - 60 * 864e5).toISOString(),
   });
   const { items = [] } = await cal<{ items?: Event[] }>(account, `?${p}`);
-  cache.set(account, items.map((e) => toReminder(account, e)).filter((r): r is Reminder => !!r));
+  cache.set(account, perThread(items.map((e) => toReminder(account, e)).filter((r): r is Reminder => !!r)));
   await migrateLocal(account);
 }
 
@@ -60,8 +77,20 @@ export const forAccount = (account: string) => [...(cache.get(account) ?? [])].s
 export const get = (account: string, threadId: string) => cache.get(account)?.find((r) => r.threadId === threadId);
 export const due = (account: string, now = Date.now()) => forAccount(account).filter((r) => !r.fired && r.at <= now);
 
-/** Nieuwe herinnering (vervangt een bestaande op dezelfde thread). */
-export async function set(account: string, threadId: string, at: number, subject: string, who: string) {
+/**
+ * Nieuwe herinnering (vervangt een bestaande op dezelfde thread).
+ * Per thread één tegelijk: twee keer snel klikken gaf vroeger twee afspraken in de agenda.
+ */
+const busy = new Map<string, Promise<unknown>>();
+export function set(account: string, threadId: string, at: number, subject: string, who: string): Promise<Reminder> {
+  const key = `${account}|${threadId}`;
+  const run = (busy.get(key) ?? Promise.resolve()).catch(() => {}).then(() => create(account, threadId, at, subject, who));
+  busy.set(key, run);
+  run.catch(() => {}).finally(() => { if (busy.get(key) === run) busy.delete(key); });
+  return run;
+}
+
+async function create(account: string, threadId: string, at: number, subject: string, who: string) {
   const old = get(account, threadId);
   if (old) await remove(account, threadId);
   const link = `${location.origin}/#mail-${encodeURIComponent(threadId)}`;
@@ -86,7 +115,7 @@ export async function set(account: string, threadId: string, at: number, subject
 export async function remove(account: string, threadId: string) {
   const r = get(account, threadId);
   if (!r) return;
-  await cal(account, `/${r.id}`, { method: 'DELETE' }).catch((e) => { if (!/ 410| 404/.test(String(e))) throw e; });
+  await Promise.all(r.ids.map((id) => cal(account, `/${id}`, { method: 'DELETE' }).catch((e) => { if (!/ 410| 404/.test(String(e))) throw e; })));
   cache.set(account, (cache.get(account) ?? []).filter((x) => x.threadId !== threadId));
 }
 
@@ -96,7 +125,7 @@ const patchPrivate = (account: string, id: string, props: Record<string, string>
 export async function markFired(account: string, threadId: string) {
   const r = get(account, threadId);
   if (!r) return;
-  await patchPrivate(account, r.id, { ecFired: '1' });
+  await Promise.all(r.ids.map((id) => patchPrivate(account, id, { ecFired: '1' })));
   r.fired = true;
 }
 
@@ -104,7 +133,7 @@ export async function markFired(account: string, threadId: string) {
 export async function markDone(account: string, threadId: string) {
   const r = get(account, threadId);
   if (!r) return;
-  await patchPrivate(account, r.id, { ecDone: '1' });
+  await Promise.all(r.ids.map((id) => patchPrivate(account, id, { ecDone: '1' })));
   cache.set(account, (cache.get(account) ?? []).filter((x) => x.threadId !== threadId));
 }
 

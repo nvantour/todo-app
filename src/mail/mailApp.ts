@@ -160,19 +160,41 @@ function toast(msg: string, undo?: () => void, ms = undo ? SEND_DELAY : 3200) {
 
 /* ---------- laden ---------- */
 
+const remindRows = (account: string): ThreadSummary[] => R.forAccount(account).map((r) => ({
+  id: r.threadId, who: r.who, subject: r.subject, date: r.at, unread: false, count: 1, labels: [], saved: false, draft: false,
+  snippet: r.fired ? 'Afgegaan, staat weer in Nieuw' : `Herinnering ${R.fmt(r.at)}`,
+}));
+
+/**
+ * Lijst en menu bijwerken zonder de open mail of het schrijfvenster opnieuw te tekenen.
+ * Voor alles wat vanzelf gebeurt (een herinnering die afgaat): de lezer mag daar niets van merken
+ * behalve de melding en de rij in de lijst.
+ */
+async function refreshListQuiet() {
+  if (!S.account) return;
+  const account = S.account, key = JSON.stringify(query());
+  if (S.view === REMIND && !S.q) S.threads = remindRows(account);
+  else if (inNewView()) {
+    try {
+      const threads = await listThreads(account, query());
+      if (S.account !== account || JSON.stringify(query()) !== key) return;
+      S.threads = threads;
+    } catch { /* volgende keer opnieuw */ }
+  }
+  const nav = appEl?.querySelector('#nav');
+  if (nav && !S.addingMap) nav.innerHTML = navHTML();
+  const list = appEl?.querySelector('#list');
+  if (list && !list.contains(root.activeElement)) list.innerHTML = listHTML();
+  void loadCounts();
+}
+
 async function loadList() {
   if (!S.account) return;
   const account = S.account, key = JSON.stringify(query());
   if (S.view === TODO && !S.q && !todoLabel()) { S.threads = []; S.listState = 'ready'; render(); return; }
   if (S.view === SETTINGS && !S.q) { S.threads = []; S.listState = 'ready'; await loadRules(); return; }
   if (S.view === SCHEDULED && !S.q) { await loadScheduled(); return; }
-  if (S.view === REMIND && !S.q) {
-    S.threads = R.forAccount(account).map((r) => ({
-      id: r.threadId, who: r.who, subject: r.subject, date: r.at, unread: false, count: 1, labels: [], saved: false, draft: false,
-      snippet: r.fired ? 'Afgegaan, staat weer in Nieuw' : `Herinnering ${R.fmt(r.at)}`,
-    }));
-    S.listState = 'ready'; render(); return;
-  }
+  if (S.view === REMIND && !S.q) { S.threads = remindRows(account); S.listState = 'ready'; render(); return; }
   S.listState = 'loading'; S.error = ''; render();
   try {
     const threads = await listThreads(account, query());
@@ -931,7 +953,8 @@ async function fireDue() {
       if ('Notification' in window && Notification.permission === 'granted') {
         try { new Notification('Herinnering', { body: r.subject, tag: r.threadId }); } catch { /* niet ondersteund */ }
       }
-      if (r.account === S.account && (inNewView() || S.view === REMIND)) await loadList(); else render();
+      // Niet alles opnieuw tekenen: dit loopt op een timer, terwijl je een mail leest of schrijft.
+      await refreshListQuiet();
     }
   } finally { firing = false; }
 }
