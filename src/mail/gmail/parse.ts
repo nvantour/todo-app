@@ -40,6 +40,14 @@ export function htmlToText(html: string): string {
     if (!(n instanceof Element)) return;
     const block = BLOCK.test(n.tagName);
     if (n.tagName === 'BR') { out += '\n'; return; }
+    // Tabelregel met korte cellen (handtekening: "M | +31 6 …") op één regel, niet elke cel los.
+    if (n.tagName === 'TR') {
+      const cells = [...n.children].filter((c) => c.tagName === 'TD' || c.tagName === 'TH');
+      if (cells.length > 1 && !n.querySelector('table')) {
+        const texts = cells.map((c) => htmlToText(c.innerHTML));
+        if (texts.every((t) => !t.includes('\n'))) { out += '\n' + texts.filter(Boolean).join(' ') + '\n'; return; }
+      }
+    }
     if (block) out += '\n';
     if (n.tagName === 'LI') out += '• ';
     n.childNodes.forEach(walk);

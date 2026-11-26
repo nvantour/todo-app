@@ -142,7 +142,8 @@ button:disabled{cursor:default;opacity:.6}
 .frow label{color:var(--muted);font-size:13px;min-width:70px}
 .frow input{flex:1;min-width:0;border:0;background:none;outline:0;padding:0;font:inherit;color:inherit}
 .reply textarea{border:0;background:none;resize:vertical;min-height:110px;field-sizing:content;width:100%;outline:0;padding:14px;font:400 16px/1.62 var(--read);color:inherit}
-.sig{white-space:pre-line;color:var(--muted);padding:0 14px 12px;font:400 15px/1.55 var(--read)}
+/* Handtekening zoals hij meegaat (met opmaak), los van het tekstvak. */
+.mailhtml.sigframe{margin:0;min-height:0;border-radius:0;border-top:1px dashed var(--line);box-sizing:content-box}
 .based{font-size:12px;color:var(--muted);padding:0 14px 12px}
 .reply .row{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);font-size:13px}
 .sp{flex:1}

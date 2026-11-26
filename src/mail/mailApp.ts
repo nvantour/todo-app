@@ -662,7 +662,8 @@ const fitters = new WeakMap<HTMLIFrameElement, ResizeObserver>();
 const on_load = ((ev: Event) => {
   const f = ev.target;
   if (!(f instanceof HTMLIFrameElement) || !f.classList.contains('mailhtml') || !f.contentDocument) return;
-  const fit = () => { f.style.height = `${f.contentDocument!.documentElement.scrollHeight}px`; };
+  // Naar boven afronden: scrollHeight rondt af, en een restje van 0,3 px geeft al een schuifbalk.
+  const fit = () => { const e = f.contentDocument!.documentElement; f.style.height = `${Math.ceil(Math.max(e.scrollHeight, e.getBoundingClientRect().height))}px`; };
   fit();
   fitters.get(f)?.disconnect();
   const ro = new ResizeObserver(fit);
@@ -730,7 +731,7 @@ function composerHTML(d: Draft) {
       <div class="frow"><label for="c-bcc">Bcc</label>${addr('c-bcc', d.bcc)}</div>` : ''}
     ${d.threadId ? '' : `<div class="frow"><label for="c-subject">Onderwerp</label><input id="c-subject" type="text" value="${esc(d.subject)}"></div>`}
     <textarea id="c-body" placeholder="Schrijf je bericht…" aria-label="Bericht">${esc(d.body)}</textarea>
-    ${S.sig.text ? `<div class="sig">${esc(S.sig.text)}</div>` : ''}
+    ${S.sig.html.trim() ? `<iframe class="mailhtml sigframe" title="Handtekening" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcdoc="${esc(mailDoc(S.sig.html, true, true))}"></iframe>` : ''}
     ${d.mode === 'fwd' ? '<div class="based">Het laatste bericht wordt meegestuurd.</div>' : ''}
     ${d.att?.length ? `<div class="atts">${d.att.map((f, i) => `<span class="att">${esc(f.name)} · ${kb(f.size)}<button data-a="rmatt" data-v="${i}" aria-label="Verwijder bijlage ${esc(f.name)}">×</button></span>`).join('')}</div>` : ''}
     ${d.mode === 'fwd' && S.thread?.messages.at(-1)?.attachments.some((a) => a.id) ? '<div class="based">De bijlagen van het oorspronkelijke bericht gaan ook mee.</div>' : ''}
