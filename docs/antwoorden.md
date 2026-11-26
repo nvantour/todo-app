@@ -9,6 +9,7 @@ Twee bronnen vullen de tab:
 |---|---|---|---|
 | **Scan op de server** (`functions/src/replyScan.ts`) | elk uur op werkdagen, 08:00 t/m 18:00, en met "Antwoorden nu scannen" in Instellingen | Google Chat, mail, en via de meldingsmails ook Teams en Slack | nee |
 | **Claude** (`/chats-ophalen`) | als Nino het vraagt | alle kanalen, volledig gelezen (ook Airtable) | ja |
+| **Claude, uurronde** (geplande taak `antwoorden-concepten`) | werkdagen elk uur om :05 | Slack (DM's + vermeldingen), Teams (Activity + chatlijst, zonder chats te openen), Airtable (reacties waar iets van Nino nodig is) | ja |
 
 ## De scan (zonder AI)
 
@@ -37,6 +38,8 @@ Beperking bij Teams en Slack: de server ziet alleen wat als meldingsmail binnenk
 Elke open kaart hoort een conceptantwoord te hebben. De scan schrijft er geen (de server heeft bewust geen Claude-sleutel); Claude vult ze aan. `list_replies` geeft per kaart `hasDraft`; met `details: true` komen de berichten, het verzendadres en de uitleg mee, zodat Claude het concept kan schrijven en met `save_reply_drafts` (zelfde kanaal en `externalId`) op de kaart zet. Zie de skill `/chats-ophalen`, onderdeel "Alleen concepten aanvullen".
 
 Dat gebeurt vanzelf door de geplande taak **`antwoorden-concepten`** in de Claude-app (werkdagen elk uur om :05, kort na de scan; prompt in `~/.claude/scheduled-tasks/antwoorden-concepten/SKILL.md`). De taak draait alleen als de Claude-app op de laptop open staat; staat hij dicht, dan vult de eerstvolgende ronde aan. De taak verstuurt niets en maakt geen taken.
+
+Sinds 2026-11-26 zoekt dezelfde taak eerst zelf naar nieuwe gesprekken in **Slack, Teams en Airtable** (skill `/chats-ophalen`, onderdeel "Uurronde"). Reden: de scan ziet Teams en Slack alleen als ze een meldingsmail sturen (alleen als Nino een tijd inactief was, in de praktijk een paar per twee weken), en Airtable-meldingen (`noreply@airtable.com`) vallen in de scan af als automatische mail. Teams loopt via de ingebouwde browser waar Nino is ingelogd; de taak opent geen chats, zodat niets ongemerkt op gelezen komt. Bij Airtable beslist de taak aan de manier van taggen en de vraag zelf of er iets van Nino nodig is (`CC: @Nino` = nee).
 
 ## Flow met Claude
 
