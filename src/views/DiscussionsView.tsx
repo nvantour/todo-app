@@ -1,14 +1,20 @@
-import { useRef, useState } from 'react'
-import { ListPlus, Plus, Trash2 } from 'lucide-react'
+import { Fragment, useRef, useState } from 'react'
+import { GripVertical, ListPlus, Plus, Trash2 } from 'lucide-react'
 import type { Discussion, DiscussionItem } from '../model/types'
 import { store, useAppData } from '../data/store'
-import { buildDiscussionItem, isHeading, openItemCount, splitLines, toggleDiscussionItem, visibleItems } from '../data/logic'
+import { buildDiscussionItem, isHeading, moveDiscussionItem, openItemCount, splitLines, stepDiscussionItem, toggleDiscussionItem, visibleItems } from '../data/logic'
 import { detectProject } from '../lib/detect'
+import { startTalkDrag, useTalkDrag } from '../components/talkDrag'
 
 // Alles wat je opslaat gaat via de verse stand uit de store, zodat twee snelle wijzigingen elkaar niet overschrijven.
 function changeItems(discussionId: string, fn: (items: DiscussionItem[]) => DiscussionItem[]) {
   const d = store.getSnapshot().discussions.find((x) => x.id === discussionId)
   if (d) store.updateDiscussion(discussionId, { items: fn(d.items) })
+}
+
+/** Nieuwe puntenlijsten opslaan; bij twee groepen eerst de nieuwe plek, dan pas weghalen (liever even dubbel dan kwijt). */
+function saveMoves(changes: Record<string, DiscussionItem[]>) {
+  for (const [id, items] of Object.entries(changes)) store.updateDiscussion(id, { items })
 }
 
 /** Raster van groepen met punten die je met het team of een klant wilt bespreken. */
@@ -97,6 +103,9 @@ function GroupBlock({ group }: { group: Discussion }) {
   const [text, setText] = useState('')
   const project = projects.find((p) => p.id === group.projectId)
   const items = visibleItems(group)
+  const drag = useTalkDrag()
+  const over = drag?.groupId === group.id
+  const line = (beforeId: string | null) => over && drag.beforeId === beforeId && <div className="talk-drop" aria-hidden />
 
   function saveTitle(el: HTMLElement) {
     const title = (el.textContent ?? '').replace(/:+\s*$/, '').trim()
@@ -120,7 +129,7 @@ function GroupBlock({ group }: { group: Discussion }) {
   }
 
   return (
-    <section className="block talk" aria-label={group.title} data-group-id={group.id}>
+    <section className={`block talk${over ? ' is-over' : ''}`} aria-label={group.title} data-group-id={group.id}>
       <div className="block__head">
         <i style={{ background: project?.color ?? 'var(--ink-3)' }} />
         <div
@@ -151,8 +160,12 @@ function GroupBlock({ group }: { group: Discussion }) {
       </div>
 
       {items.map((item) => (
-        <TalkItem key={item.id} group={group} item={item} />
+        <Fragment key={item.id}>
+          {line(item.id)}
+          <TalkItem group={group} item={item} dragging={drag?.itemId === item.id} />
+        </Fragment>
       ))}
+      {line(null)}
 
       <form
         className="item is-add"
@@ -185,9 +198,11 @@ function GroupBlock({ group }: { group: Discussion }) {
   )
 }
 
-function TalkItem({ group, item }: { group: Discussion; item: DiscussionItem }) {
+function TalkItem({ group, item, dragging }: { group: Discussion; item: DiscussionItem; dragging: boolean }) {
   const [completing, setCompleting] = useState(false)
+  const row = useRef<HTMLDivElement>(null)
   const heading = isHeading(item.text)
+  const discussions = () => store.getSnapshot().discussions
 
   function finish(after?: () => void) {
     if (completing) return
@@ -207,7 +222,7 @@ function TalkItem({ group, item }: { group: Discussion; item: DiscussionItem }) 
   }
 
   return (
-    <div className={`item${completing ? ' is-completing' : ''}${heading ? ' is-heading' : ''}`}>
+    <div ref={row} data-item-id={item.id} className={`item${completing ? ' is-completing' : ''}${heading ? ' is-heading' : ''}${dragging ? ' is-dragging' : ''}`}>
       {!heading && (
         <button className={`check is-small${completing ? ' is-done' : ''}`} aria-label={`Besproken: ${item.text}`} onClick={() => finish()}>
           <span className="check__dot" />
@@ -236,8 +251,8 @@ function TalkItem({ group, item }: { group: Discussion; item: DiscussionItem }) 
           {item.text}
         </span>
       </div>
-      {!heading && (
-        <div className="item__side">
+      <div className="item__side">
+        {!heading && (
           <button
             className="item__move"
             aria-label={`Maak taak: ${item.text}`}
@@ -246,8 +261,21 @@ function TalkItem({ group, item }: { group: Discussion; item: DiscussionItem }) 
           >
             <ListPlus size={15} />
           </button>
-        </div>
-      )}
+        )}
+        <button
+          className="item__move talk__grip"
+          aria-label={`Verplaats: ${item.text}`}
+          title="Sleep om te verplaatsen (of pijltje omhoog/omlaag)"
+          onPointerDown={(e) => row.current && startTalkDrag(e, item.id, row.current, (d) => d.groupId && saveMoves(moveDiscussionItem(discussions(), item.id, d.groupId, d.beforeId)))}
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+            e.preventDefault()
+            saveMoves(stepDiscussionItem(discussions(), group.id, item.id, e.key === 'ArrowUp' ? -1 : 1))
+          }}
+        >
+          <GripVertical size={15} />
+        </button>
+      </div>
     </div>
   )
 }

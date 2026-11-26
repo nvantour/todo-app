@@ -29,6 +29,7 @@ Deploy is handmatig met de Firebase-CLI (project `work-apps-48770`). Er is geen 
 - **Vandaag** (`/vandaag`, startpagina): dagstart-blok (nog leeg, wordt gevuld door `/werkronde`), voorstellen-banner, max. 5 taken "om nu te doen", bespreekgroepen met open punten. Op de telefoon staan Meetings, Mail en Per klant onder "Meer".
 - Scherm **Taken** met twee groepen: *Om nu te doen* (`bucket: 'now'`) en *Om niet te vergeten* (`'later'`). Een taak met een datum schuift op die dag vanzelf naar "nu". Geen prioriteiten.
 - **Per klant**: raster met een blok per klant plus "Overig".
+- **Om te bespreken**: groepen met punten. Punten verplaats je aan het greepje rechts (binnen een groep of naar een andere groep), ook met de vinger: `src/components/talkDrag.ts` gebruikt pointer-events, want HTML-slepen werkt niet op een iPhone. Pijltje omhoog/omlaag op het greepje schuift één plek, Escape breekt af. De volgorde is gewoon de volgorde van `items` in de groep (`moveDiscussionItem` in `data/logic.ts`).
 - **Voorstellen**: mogelijke **taken** die tools of AI zelf vinden (agenda, meeting, mail, chat). Wordt pas een taak na akkoord. Iets waar alleen een antwoord op moet komen is geen voorstel: dat hoort op **Antwoorden**.
 - Checklist zoals Notes: klik in de tekst om te bewerken, lege regel onderaan om door te typen. Klant, datum, tijd en herhaling worden herkend uit de tekst (`src/lib/parse.ts`, `src/lib/detect.ts`).
 - Inspreken (`src/voice/`), zoeken (⌘K), instellingen (thema, agenda-regels, meldingen, koppelingen).

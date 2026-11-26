@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DiscussionItem } from '../model/types'
-import { cleanDiscussionTitle, isHeading, normalizeDiscussion, openItemCount, preparePatch, pruneDoneItems, splitLines, toggleDiscussionItem } from './logic'
+import { cleanDiscussionTitle, isHeading, moveDiscussionItem, normalizeDiscussion, openItemCount, preparePatch, pruneDoneItems, splitLines, stepDiscussionItem, toggleDiscussionItem } from './logic'
 
 const item = (id: string, text: string, done = false, doneAt: string | null = null): DiscussionItem => ({ id, text, done, doneAt })
 
@@ -53,5 +53,51 @@ describe('tekst splitsen en oude data', () => {
   it('vult ontbrekende velden aan', () => {
     const d = normalizeDiscussion('id1', { title: 'Wehkamp' })
     expect(d).toMatchObject({ id: 'id1', title: 'Wehkamp', projectId: null, items: [] })
+  })
+})
+
+describe('punten verplaatsen', () => {
+  const group = (id: string, items: DiscussionItem[]) => ({ id, title: id, projectId: null, items, order: 0, createdAt: '', updatedAt: '' })
+  const ids = (items: DiscussionItem[] | undefined) => items?.map((i) => i.id)
+  const a = () => group('A', [item('a1', 'Een'), item('a2', 'Twee'), item('a3', 'Drie')])
+  const b = () => group('B', [item('b1', 'Vier')])
+
+  it('herordent binnen een groep', () => {
+    expect(ids(moveDiscussionItem([a(), b()], 'a3', 'A', 'a1').A)).toEqual(['a3', 'a1', 'a2'])
+    expect(ids(moveDiscussionItem([a(), b()], 'a1', 'A', null).A)).toEqual(['a2', 'a3', 'a1'])
+    expect(ids(moveDiscussionItem([a(), b()], 'a1', 'A', 'a3').A)).toEqual(['a2', 'a1', 'a3'])
+  })
+
+  it('doet niets als de plek gelijk blijft', () => {
+    expect(moveDiscussionItem([a(), b()], 'a1', 'A', 'a2')).toEqual({})
+    expect(moveDiscussionItem([a(), b()], 'a1', 'A', 'a1')).toEqual({})
+    expect(moveDiscussionItem([a(), b()], 'a3', 'A', null)).toEqual({})
+  })
+
+  it('verplaatst naar een andere groep, en terug', () => {
+    const out = moveDiscussionItem([a(), b()], 'a2', 'B', 'b1')
+    expect(ids(out.A)).toEqual(['a1', 'a3'])
+    expect(ids(out.B)).toEqual(['a2', 'b1'])
+    const back = moveDiscussionItem([group('A', out.A), group('B', out.B)], 'a2', 'A', null)
+    expect(ids(back.A)).toEqual(['a1', 'a3', 'a2'])
+    expect(ids(back.B)).toEqual(['b1'])
+  })
+
+  it('kan naar een lege groep', () => {
+    expect(ids(moveDiscussionItem([a(), group('C', [])], 'a1', 'C', null).C)).toEqual(['a1'])
+  })
+
+  it('negeert onbekende punten of groepen', () => {
+    expect(moveDiscussionItem([a()], 'x', 'A', null)).toEqual({})
+    expect(moveDiscussionItem([a()], 'a1', 'X', null)).toEqual({})
+    expect(moveDiscussionItem([a(), b()], 'a1', 'B', 'a2')).toEqual({})
+  })
+
+  it('pijltjes slaan afgevinkte punten over', () => {
+    const g = group('A', [item('a1', 'Een'), item('d', 'Klaar', true, '2026-11-26'), item('a2', 'Twee')])
+    expect(ids(stepDiscussionItem([g], 'A', 'a2', -1).A)).toEqual(['a2', 'a1', 'd'])
+    expect(ids(stepDiscussionItem([g], 'A', 'a1', 1).A)).toEqual(['d', 'a2', 'a1'])
+    expect(stepDiscussionItem([g], 'A', 'a1', -1)).toEqual({})
+    expect(stepDiscussionItem([g], 'A', 'a2', 1)).toEqual({})
   })
 })

@@ -148,3 +148,32 @@ export function preparePatch(patch: Partial<Discussion>): Partial<Discussion> {
     ...(patch.title !== undefined ? { title: cleanDiscussionTitle(patch.title) } : {}),
   }
 }
+
+/**
+ * Zet punt `itemId` in groep `toId`, vóór punt `beforeId` (null = achteraan).
+ * Geeft per groep die verandert de nieuwe puntenlijst terug; leeg als er niets verandert.
+ */
+export function moveDiscussionItem(discussions: Discussion[], itemId: string, toId: string, beforeId: string | null): Record<string, DiscussionItem[]> {
+  const from = discussions.find((d) => d.items.some((i) => i.id === itemId))
+  const to = discussions.find((d) => d.id === toId)
+  if (!from || !to || beforeId === itemId) return {}
+  const item = from.items.find((i) => i.id === itemId)!
+  const rest = from.items.filter((i) => i.id !== itemId)
+  const target = from.id === to.id ? rest : to.items
+  const index = beforeId ? target.findIndex((i) => i.id === beforeId) : target.length
+  if (index < 0) return {}
+  const next = [...target.slice(0, index), item, ...target.slice(index)]
+  if (from.id !== to.id) return { [to.id]: next, [from.id]: rest }
+  return next.some((i, k) => i.id !== from.items[k].id) ? { [from.id]: next } : {}
+}
+
+/** Eén plek omhoog (-1) of omlaag (1) tussen de zichtbare punten van de groep; voor de pijltjestoetsen. */
+export function stepDiscussionItem(discussions: Discussion[], groupId: string, itemId: string, dir: -1 | 1): Record<string, DiscussionItem[]> {
+  const group = discussions.find((d) => d.id === groupId)
+  if (!group) return {}
+  const shown = visibleItems(group)
+  const k = shown.findIndex((i) => i.id === itemId)
+  if (k < 0) return {}
+  if (dir === -1) return k === 0 ? {} : moveDiscussionItem(discussions, itemId, groupId, shown[k - 1].id)
+  return k === shown.length - 1 ? {} : moveDiscussionItem(discussions, itemId, groupId, shown[k + 2]?.id ?? null)
+}
