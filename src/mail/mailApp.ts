@@ -165,26 +165,46 @@ const remindRows = (account: string): ThreadSummary[] => R.forAccount(account).m
   snippet: r.fired ? 'Afgegaan, staat weer in Nieuw' : `Herinnering ${R.fmt(r.at)}`,
 }));
 
+/** Komt deze lijst rechtstreeks uit Gmail? Dan kan hij op de achtergrond meelopen. */
+const liveList = () => !!S.q || (![SETTINGS, SCHEDULED, REMIND].includes(S.view) && (S.view !== TODO || !!todoLabel()));
+
+/** De lijst opnieuw tekenen zonder de leespositie te verliezen; staat de cursor in het zoekveld, dan alleen de rijen. */
+function drawList() {
+  const list = appEl?.querySelector<HTMLElement>('#list');
+  if (!list) return;
+  const top = list.scrollTop;
+  const rows = list.querySelector('#rows');
+  if (rows && list.contains(root.activeElement)) rows.innerHTML = rowsHTML();
+  else list.innerHTML = listHTML();
+  list.scrollTop = top;
+}
+
 /**
- * Lijst en menu bijwerken zonder de open mail of het schrijfvenster opnieuw te tekenen.
- * Voor alles wat vanzelf gebeurt (een herinnering die afgaat): de lezer mag daar niets van merken
- * behalve de melding en de rij in de lijst.
+ * De lijst laten meelopen met Gmail zonder de open mail of het schrijfvenster opnieuw te tekenen.
+ * Loopt elke halve minuut en zodra je terugkomt in het venster: wat je elders (telefoon, Gmail) leest,
+ * afhandelt of binnenkrijgt, staat hier dan ook zo. Tekent alleen als er iets veranderd is.
+ * `force`: ook zonder verschil tekenen, met het menu erbij (een herinnering die afgaat).
  */
-async function refreshListQuiet() {
-  if (!S.account) return;
-  const account = S.account, key = JSON.stringify(query());
-  if (S.view === REMIND && !S.q) S.threads = remindRows(account);
-  else if (inNewView()) {
+let quietBusy = false;
+async function refreshListQuiet(force = false) {
+  if (!S.account || S.needLogin) return;
+  const account = S.account, key = JSON.stringify(query()), before = S.threads;
+  let changed = force;
+  if (S.view === REMIND && !S.q) { S.threads = remindRows(account); changed = true; }
+  else if (liveList() && S.listState === 'ready' && !S.sel && !quietBusy) {
+    quietBusy = true;
     try {
       const threads = await listThreads(account, query());
-      if (S.account !== account || JSON.stringify(query()) !== key) return;
-      S.threads = threads;
+      // Intussen een andere lijst geopend of zelf iets gedaan (Klaar, prullenbak): dan is dit antwoord verouderd.
+      if (S.account !== account || JSON.stringify(query()) !== key || S.threads !== before || S.sel) return;
+      if (JSON.stringify(threads) !== JSON.stringify(before)) { S.threads = threads; changed = true; }
     } catch { /* volgende keer opnieuw */ }
+    finally { quietBusy = false; }
   }
+  if (!changed) return;
   const nav = appEl?.querySelector('#nav');
-  if (nav && !S.addingMap) nav.innerHTML = navHTML();
-  const list = appEl?.querySelector('#list');
-  if (list && !list.contains(root.activeElement)) list.innerHTML = listHTML();
+  if (force && nav && !S.addingMap) nav.innerHTML = navHTML();
+  drawList();
   void loadCounts();
 }
 
@@ -564,13 +584,17 @@ function rulesHTML() {
     <div>${rows}</div></section>`;
 }
 
-function listHTML() {
+function rowsHTML() {
   let rows = '';
   if (S.needLogin) rows = reloginHTML(S.needLogin);
   else if (S.listState === 'loading' && !S.threads.length) rows = `<div class="none">${S.q ? 'Zoeken…' : 'Mail ophalen…'}</div>`;
   else if (S.listState === 'error') rows = `<div class="none">Deze lijst kon niet laden.<br><button class="link" data-a="reload">Probeer opnieuw</button></div>`;
   else if (S.view === SCHEDULED && !S.q) rows = scheduledHTML();
   else { const tasks = hooks.tasks(); rows = S.threads.map((t) => itemHTML(t, tasks)).join('') || `<div class="none">${S.q ? 'Niets gevonden.' : inNewView() && S.unreadOnly ? 'Geen ongelezen mail.' : EMPTY[S.view] ?? 'Deze map is leeg.'}</div>`; }
+  return rows;
+}
+
+function listHTML() {
   const gmail = gmailAccount();
   return `<div class="head"><div class="hrow">
       <button class="icon mob" data-a="pane" data-v="nav" aria-label="Menu">${ICON.menu}</button>
@@ -585,7 +609,7 @@ function listHTML() {
         <button class="${S.unreadOnly ? 'on' : ''}" data-a="onlyunread" data-v="1" aria-pressed="${S.unreadOnly}">${unreadLabel()}</button></div>` : ''}
       ${bulkHTML()}
       ${S.error ? `<p class="error">${esc(S.error)}</p>` : ''}</div>
-    <div id="rows">${rows}</div>`;
+    <div id="rows">${rowsHTML()}</div>`;
 }
 
 /* ---------- HTML-mails: afgeschermd kader, geen scripts, externe afbeeldingen pas na klik ---------- */
@@ -954,7 +978,7 @@ async function fireDue() {
         try { new Notification('Herinnering', { body: r.subject, tag: r.threadId }); } catch { /* niet ondersteund */ }
       }
       // Niet alles opnieuw tekenen: dit loopt op een timer, terwijl je een mail leest of schrijft.
-      await refreshListQuiet();
+      await refreshListQuiet(true);
     }
   } finally { firing = false; }
 }
@@ -1609,9 +1633,11 @@ export function mountMail(el: HTMLElement, h: MailHooks, theme: string): () => v
   root.addEventListener('pointerdown', on_pointerdown);
   root.addEventListener('focusout', on_focusout);
   document.addEventListener('keydown', on_keydown);
-  const onVisible = () => { if (!document.hidden) fireDue(); };
+  // Terug in het venster (ander tabblad of andere app): meteen bijwerken wat er elders gelezen of binnengekomen is.
+  const onVisible = () => { if (!document.hidden) { fireDue(); void refreshListQuiet(); void loadCounts(); } };
   document.addEventListener('visibilitychange', onVisible);
-  const timer = window.setInterval(() => { fireDue(); void loadCounts(); }, 30_000);
+  window.addEventListener('focus', onVisible);
+  const timer = window.setInterval(() => { fireDue(); void loadCounts(); if (!document.hidden) void refreshListQuiet(); }, 30_000);
   // Bij wisselen tussen breed en smal: smal de open thread laten zien, anders de lijst.
   let wasNarrow = narrow();
   const ro = new ResizeObserver(() => {
@@ -1640,6 +1666,7 @@ export function mountMail(el: HTMLElement, h: MailHooks, theme: string): () => v
     root.removeEventListener('focusout', on_focusout);
     document.removeEventListener('keydown', on_keydown);
     document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('focus', onVisible);
     clearInterval(timer);
     ro.disconnect();
     clearTimeout(toastTimer);
