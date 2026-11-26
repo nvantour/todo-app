@@ -17,6 +17,9 @@ export const header = (headers: Header[] | undefined, name: string) =>
 function decode(data: string, charset: string) {
   const bin = atob(data.replace(/-/g, '+').replace(/_/g, '/'));
   const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  // Gmail levert de tekst vaak al als UTF-8, ook als de kopregel nog het oude tekenset noemt
+  // (anders wordt "Maïté" "MaÃ¯tÃ©"). Eerst UTF-8; alleen als dat niet klopt het genoemde tekenset. Zelfde als de server (mailScan.ts).
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { /* geen geldige UTF-8 */ }
   try { return new TextDecoder(charset).decode(bytes); } catch { return new TextDecoder().decode(bytes); }
 }
 
