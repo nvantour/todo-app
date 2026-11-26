@@ -9,6 +9,7 @@ import { openSuggestions, openTodos } from '../lib/selectors'
 import { moveTo, setNavOrder, useNavOrder, type NavId } from '../lib/navOrder'
 import { NAV_ITEMS } from './navItems'
 import { waitingReplies } from '../data/replies'
+import { useMailUnread } from '../mail/unread'
 
 const active = ({ isActive }: { isActive: boolean }) => `nav-item${isActive ? ' is-active' : ''}`
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
@@ -22,6 +23,7 @@ export function Sidebar() {
   const suggestions = openSuggestions(data).length
   const todos = openTodos(data).length
   const replies = waitingReplies(data)
+  const mailUnread = useMailUnread()
   const name = user?.name?.split(' ')[0] ?? 'Nino'
 
   function badge(id: NavId) {
@@ -73,6 +75,7 @@ export function Sidebar() {
           >
             <Icon size={18} />
             {item.label}
+            {id === 'mail' && mailUnread ? ` (${mailUnread})` : ''}
             {badge(id)}
           </NavLink>
         )

@@ -17,6 +17,7 @@ import {
 import * as R from './reminders';
 import { QUOTE, mailDoc } from './render';
 import { addressesIn, insertContact, matchContacts, tokenAt, type Contact } from './contacts';
+import { setMailUnread } from './unread';
 
 /** Wat de mail van het werk-OS nodig heeft: taken maken, bespreekpunten, naar Instellingen. */
 export interface MailHooks {
@@ -242,6 +243,7 @@ async function loadCounts(force = false) {
     const counts = await labelCounts(account, [INBOX, 'STARRED', 'DRAFT', 'SPAM'], [INBOX]);
     if (S.account !== account) return;
     countsAt = Date.now();
+    setMailUnread(counts[INBOX]);  // ook "Mail (n)" in het menu van de app
     // Alleen het menu opnieuw tekenen, en alleen als er een aantal veranderd is. Alles opnieuw tekenen
     // haalt de cursor uit het schrijfvenster; wat je daarna typt telt dan als sneltoets (E = Klaar, Backspace = prullenbak).
     const keys = Object.keys(counts);
@@ -344,7 +346,7 @@ async function openThread(id: string) {
     else if (t.draft && (!local || (!local.body.trim() && !local.gmailDraftId))) S.drafts.set(id, fromGmail(t, t.draft, account));
     else if (!local) S.drafts.set(id, draftFor(t, 'reply', account));
     const row = S.threads.find((x) => x.id === id);
-    if (row?.unread) { row.unread = false; markRead(account, id).catch(fail); }
+    if (row?.unread) { row.unread = false; markRead(account, id).then(() => loadCounts(true), fail); }
   } catch (e) { fail(e); S.threadState = 'error'; }
   render();
 }
@@ -1032,6 +1034,7 @@ async function unread(ids: string[]) {
   try { await Promise.all(ids.map((id) => markUnread(account, id))); } catch (e) { fail(e); render(); return; }
   S.threads.forEach((t) => { if (ids.includes(t.id)) t.unread = true; });
   S.sel = null;
+  void loadCounts(true);
   toast(plural(ids, 'Gemarkeerd als ongelezen', 'threads gemarkeerd als ongelezen'));
   if (S.open && ids.includes(S.open)) closeThread();  // openen zou hem meteen weer gelezen maken
   render();
