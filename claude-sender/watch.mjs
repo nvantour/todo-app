@@ -3,12 +3,13 @@
 // Teams/Slack-antwoord goedkeurde. Zo ja, dan start hij `claude -p` met opdracht.md: Claude zet de emoji
 // of verstuurt het antwoord (Slack via de Slack-koppeling, Teams in Nino's eigen Chrome). Zie README.md.
 
-import { spawn, execFile } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pending, countAttempts, newFailures, failureText, replyKey, reactionKey } from './lib.mjs'
+import { pending, countAttempts, newFailures, failureText, replyKey, reactionKey, TARGETS } from './lib.mjs'
+import { notify as sendNotification } from './notify.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const API = (process.env.TODO_APP_API || 'https://work-apps-48770.web.app/api').replace(/\/$/, '')
@@ -71,10 +72,10 @@ function saveState(s) {
   fs.writeFileSync(STATE, JSON.stringify(s, null, 2))
 }
 
-/** macOS-melding. Tekst als argument, niet in het script: zo kan geen tekst het script breken. */
-function notify(title, body) {
-  const script = 'on run argv\ndisplay notification (item 2 of argv) with title (item 1 of argv) sound name "Glass"\nend run'
-  execFile('osascript', ['-e', script, title, body.slice(0, 240)], (err) => err && log(`! melding mislukt: ${err.message}`))
+/** macOS-melding; met een doel is hij klikbaar (zie notify.mjs). */
+async function notify(title, body, target) {
+  const how = await sendNotification(title, body, target)
+  if (how !== 'klikbaar') log(how === 'gewoon' ? `! melding "${title}" is niet klikbaar: Hammerspoon reageerde niet` : `! ${how}`)
 }
 
 /** MCP-config voor de todo-koppeling, met het pad naar de sleutel-helper buiten de repo. */
@@ -111,7 +112,7 @@ async function round(state) {
   const { keys, todo, givenUp } = pending(q, state.attempts)
   for (const k of givenUp.filter((k) => !state.warnedGivenUp.includes(k))) {
     state.warnedGivenUp.push(k)
-    notify('Werk-OS: blijft hangen', 'Claude kreeg een emoji of antwoord na twee pogingen niet weg. Kijk op de tab Antwoorden.')
+    await notify('Werk-OS: blijft hangen', 'Claude kreeg een emoji of antwoord na twee pogingen niet weg. Klik hier voor de tab Antwoorden.', TARGETS.antwoorden)
     log(`! opgegeven na ${2} pogingen: ${k}`)
   }
   if (todo.length) {
@@ -133,8 +134,8 @@ async function round(state) {
     state.notified.push(...items.map((i) => i.key))
   } else {
     for (const f of newFailures(items, state.notified)) {
-      const { title, body } = failureText(f)
-      notify(title, body)
+      const { title, body, target } = failureText(f)
+      await notify(title, body, target)
       state.notified.push(f.key)
     }
   }

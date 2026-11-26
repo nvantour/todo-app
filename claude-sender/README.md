@@ -16,8 +16,12 @@ Vervangt voor nu het verzendscript op de Mac mini (`reply-sender/`), die niet in
    `report_reply_result`). De server laat alleen die stappen toe: Claude kan zelf niets goedkeuren.
    - **Slack**: via de Slack-koppeling (geen browser).
    - **Teams**: in Nino's eigen Chrome (Claude in Chrome), in een eigen tabblad dat daarna dicht gaat.
-5. Mislukt iets, dan krijgt Nino een macOS-melding (osascript), één keer per
-   onderdeel. Bij "niet ingelogd" staat dat in de melding: dan moet Nino inloggen (Teams in Chrome).
+5. Mislukt iets, dan krijgt Nino een macOS-melding, één keer per onderdeel. De melding is **klikbaar**
+   (`notify.mjs`): bij "Teams in Chrome: niet ingelogd" opent de klik Teams in Chrome (het inlogscherm), bij al
+   het andere de tab Antwoorden. Klikbaar gaat via Hammerspoon (`klikMelding` uit
+   `Operationeel/Automatiseringen/klik-melding.lua` in de werkmap, geladen door `~/.hammerspoon/init.lua`); de
+   wachter start Hammerspoon zelf als het niet draait. Reageert Hammerspoon niet, dan komt de gewone
+   osascript-melding (niet klikbaar) en staat dat in het log.
 6. Pakt Claude een onderdeel twee rondes niet op (blijft het `approved`/`queued`), dan laat de wachter het liggen
    en komt er één melding. Zo blijft hij niet eindeloos Claude starten.
 
@@ -29,6 +33,7 @@ Werkt alleen als de laptop aan staat en Chrome open is (voor Teams).
 - `watch.mjs` — de wachter. `--once` = één ronde.
 - `opdracht.md` — de vaste opdracht voor Claude.
 - `lib.mjs` + `lib.test.mjs` — losse logica (pogingen tellen, meldingen), `node --test`.
+- `notify.mjs` — verstuurt de melding (klikbaar via Hammerspoon, anders gewoon).
 - `run.sh` — wrapper voor launchd (leest `~/.zprofile` voor `TODO_APP_TOKEN` en het pad naar node/claude).
 - `install.sh` — kopieert naar `~/.local/share/todo-app/claude-sender` en zet de dienst aan.
 - Status: `~/.config/todo-app/claude-sender-state.json` · log: `~/Library/Logs/claude-sender.log`.

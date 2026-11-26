@@ -29,11 +29,30 @@ export function newFailures(failed, notified = []) {
   return failed.filter((f) => !seen.has(f.key))
 }
 
-/** Tekst van de melding bij een mislukking. */
+/** Waar een klik op een melding naartoe gaat. `app` = bundle-id van de app die de link opent. */
+export const TARGETS = {
+  teamsChrome: { url: 'https://teams.microsoft.com/v2/', app: 'com.google.Chrome' },
+  antwoorden: { url: 'https://work-apps-48770.web.app/antwoorden' },
+}
+
+/** Tekst van de melding bij een mislukking, en waar een klik erop naartoe gaat. */
 export function failureText(f) {
   if (/niet ingelogd/i.test(f.error ?? '')) {
-    const where = f.channel === 'teams' ? 'Teams in Chrome' : f.channel === 'slack' ? 'Slack' : f.channel
-    return { title: `${where}: niet ingelogd`, body: `Log in op ${where}, dan probeert Claude het opnieuw als je de emoji of het antwoord opnieuw zet. (${f.what})` }
+    if (f.channel === 'teams') {
+      // De wachter werkt in Nino's eigen Chrome: daar moet hij inloggen.
+      return { title: 'Teams in Chrome: niet ingelogd', body: `Klik hier om in te loggen op Teams in Chrome. Zet daarna de emoji of het antwoord opnieuw. (${f.what})`, target: TARGETS.teamsChrome }
+    }
+    const where = f.channel === 'slack' ? 'Slack' : f.channel
+    return { title: `${where}: niet ingelogd`, body: `Log in op ${where}, dan probeert Claude het opnieuw als je de emoji of het antwoord opnieuw zet. (${f.what})`, target: TARGETS.antwoorden }
   }
-  return { title: `${f.what} niet gelukt`, body: `${f.label}: ${f.error ?? 'onbekende fout'}` }
+  return { title: `${f.what} niet gelukt`, body: `${f.label}: ${f.error ?? 'onbekende fout'}`, target: TARGETS.antwoorden }
+}
+
+/** Lua-string met elke byte als \ddd: geen enkel teken uit een melding kan het commando breken. */
+export const luaString = (s) => '"' + [...Buffer.from(String(s), 'utf8')].map((b) => '\\' + String(b).padStart(3, '0')).join('') + '"'
+
+/** Het Hammerspoon-commando voor een klikbare melding (functie klikMelding uit klik-melding.lua). */
+export function clickNotificationLua(title, body, target) {
+  const fields = Object.entries(target).map(([k, v]) => `${k} = ${luaString(v)}`).join(', ')
+  return `return klikMelding(${luaString(title)}, ${luaString(body)}, { ${fields} })`
 }

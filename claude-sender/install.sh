@@ -9,7 +9,7 @@ LABEL="nl.onlinedialogue.claude-sender"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
 mkdir -p "$DEST"
-cp "$SRC"/watch.mjs "$SRC"/lib.mjs "$SRC"/opdracht.md "$SRC"/run.sh "$DEST"/
+cp "$SRC"/watch.mjs "$SRC"/lib.mjs "$SRC"/notify.mjs "$SRC"/opdracht.md "$SRC"/run.sh "$DEST"/
 chmod +x "$DEST/run.sh"
 
 cat > "$PLIST" <<PLIST
@@ -31,5 +31,7 @@ cat > "$PLIST" <<PLIST
 PLIST
 
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+# Wachten tot de oude dienst echt weg is: meteen opnieuw laden geeft "Bootstrap failed: 5: Input/output error".
+for i in {1..20}; do launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || break; sleep 0.5; done
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 echo "Wachter draait vanuit $DEST. Log: ~/Library/Logs/claude-sender.log"
