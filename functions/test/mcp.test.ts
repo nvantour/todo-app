@@ -21,7 +21,7 @@ describe('MCP-tools', () => {
   it('biedt precies de afgesproken tools aan', async () => {
     const { client } = await connect()
     const names = (await client.listTools()).tools.map((t) => t.name).sort()
-    expect(names).toEqual(['add_todo', 'complete_todo', 'get_brief', 'list_projects', 'list_reaction_queue', 'list_replies', 'list_todos', 'report_reaction_result', 'save_reply_drafts', 'schedule_todo', 'suggest_todo', 'update_todo'])
+    expect(names).toEqual(['add_todo', 'complete_todo', 'get_brief', 'list_projects', 'list_reaction_queue', 'list_replies', 'list_send_queue', 'list_todos', 'report_reaction_result', 'report_reply_result', 'save_reply_drafts', 'schedule_todo', 'suggest_todo', 'update_todo'])
   })
 
   it('geeft in de beschrijvingen de afspraak add_todo / suggest_todo mee', async () => {
@@ -70,6 +70,25 @@ describe('MCP-tools', () => {
     expect(after.reactionQueue![0].status).toBe('sent')
     expect(after.messages[0].reactions).toEqual([{ emoji: '👍', count: 1, mine: true }])
     expect((await call('list_reaction_queue')).json().count).toBe(0)
+  })
+
+  it('verzendwachtrij: alleen goedgekeurde Teams/Slack-antwoorden; Claude kan niet zelf goedkeuren', async () => {
+    const { call, service, repo } = await connect()
+    await service.saveReplies(UID, [
+      { channel: 'teams', externalId: 'teams:1', title: 'CRO', who: 'Rick', target: { url: 'https://teams.microsoft.com/l/chat/1' }, messages: [], draft: 'Donderdag kan ik.' },
+      { channel: 'slack', externalId: 'slack:C1', title: '#x', who: 'Lisa', target: { url: 'https://app.slack.com/client/T/C1', channel: 'C1' }, messages: [], draft: 'Ja.' },
+    ])
+    const [a, b] = await repo.listReplies(UID)
+    // open kaarten staan niet in de wachtrij, en open → sending mag niet
+    expect((await call('list_send_queue')).json().count).toBe(0)
+    expect((await call('report_reply_result', { replyId: a.id, status: 'sending' })).isError).toBe(true)
+    await repo.saveReply(UID, { ...a, status: 'approved', approvedAt: '2026-11-26T10:00:00Z' })
+    const q = (await call('list_send_queue')).json()
+    expect(q.replies).toMatchObject([{ id: a.id, channel: 'teams', draft: 'Donderdag kan ik.', target: { url: 'https://teams.microsoft.com/l/chat/1' } }])
+    await call('report_reply_result', { replyId: a.id, status: 'sending' })
+    await call('report_reply_result', { replyId: a.id, status: 'sent' })
+    expect((await repo.getReply(UID, a.id))!.status).toBe('sent')
+    expect((await repo.getReply(UID, b.id))!.status).toBe('open')
   })
 
   it('voegt toe, lijst, wijzigt en vinkt af', async () => {

@@ -43,8 +43,8 @@ Onder elk chatbericht (Google Chat, Teams, Slack) staan de emoji die erop gegeve
 
 **Zetten** (`Reply.reactionQueue`, één `ReactionRequest` per emoji; alleen de app maakt ze aan, Claude nooit):
 - Google Chat: de app roept `POST /api/replies/:id/react` aan (alleen ID-token van de app); de server zet de emoji met de Google-koppeling (scope `chat.messages.reactions.create`, vraagt één keer opnieuw koppelen; zie Instellingen → "Chat emoji").
-- Teams en Slack: status `queued`. **Claude zet ze in de uurronde** (geplande taak `antwoorden-concepten`, en op verzoek met `/chats-ophalen emoji`): MCP `list_reaction_queue` → per emoji `report_reaction_result` `sending` → zetten → `sent`/`failed`. Slack met de Slack-koppeling (`slack_add_reaction`), Teams in de Claude-browser (ingebouwde browser, waar Nino ingelogd is): gesprek openen, over het bericht bewegen, emoji aanklikken. Niet ingelogd op Teams → `failed` met "Niet ingelogd op Teams in de Claude-browser" en een melding aan Nino. Claude zet alleen wat in de wachtrij staat, nooit iets eigens. Dus: tot een uur vertraging, en alleen als de Claude-app op de laptop open staat.
-- Het verzendscript (`reply-sender/`) kan het ook (REST: `GET /api/reactions?status=queued&channel=teams,slack`, `POST /api/replies/:id/reactions/:rid/result`), maar draait nu nergens: de Mac mini is niet in gebruik en Nino wil één inlogplek (de Claude-browser), geen apart Chrome-profiel (2026-11-26).
+- Teams en Slack: status `queued`. De **wachter op de laptop** (`claude-sender/`) ziet dat binnen 15 s en start `claude -p`: MCP `list_reaction_queue` → per emoji `report_reaction_result` `sending` → zetten → `sent`/`failed`. Slack met de Slack-koppeling (`slack_add_reaction`), Teams in Nino's eigen Chrome (Claude in Chrome). Niet ingelogd → `failed` met de reden en een macOS-melding. Claude zet alleen wat in de wachtrij staat, nooit iets eigens. Noodroute met de hand: `/chats-ophalen emoji`.
+- Het verzendscript op de Mac mini (`reply-sender/`) kan het ook, maar draait nu nergens (mini niet in gebruik, en Nino wil geen apart browserprofiel om op in te loggen; 2026-11-26).
 - Statussen: `queued` → `sending` → `sent` | `failed` (Chat begint meteen bij `sending`). Bij `sent` komt de emoji onder het bericht (`withReaction`). Mislukt het terwijl de kaart al was afgehandeld, dan gaat de kaart weer open. Een mislukte emoji staat rood; aanklikken = opnieuw proberen.
 - Een emoji-resultaat verandert `updatedAt` van de kaart niet: het is geen nieuw bericht.
 
@@ -67,9 +67,9 @@ Sinds 2026-11-26 zoekt dezelfde taak eerst zelf naar nieuwe gesprekken in **Slac
    - **mail**: de app zelf (Gmail-API in de browser, `src/data/sendReply.ts`), als antwoord in de thread, met handtekening en citaat; daarna uit Nieuw.
    - **gchat**: `POST /api/replies/:id/send` → de server plaatst het bericht met de Google-koppeling (scope `chat.messages.create`). Alleen met het ID-token van de app. Vereist een Chat-app-configuratie in Google Cloud (API Google Chat → Configuratie: naam Werk-OS, interactief uit), ingesteld 2026-11-23.
    - **airtable**: zelfde endpoint → de server plaatst een reactie op het record (`target.baseId/tableId/recordId`, `parentCommentId` voor een antwoord in de draad) met `AIRTABLE_API_TOKEN` (scope `data.recordComments:write`).
-   - **teams / slack**: status `approved`; het verzendscript op de Mac mini (`reply-sender/`) haalt de wachtrij op, typt precies `draft` in het gesprek op `target.url` en meldt `sending` → `sent`/`failed`.
+   - **teams / slack**: status `approved`; de wachter op de laptop (`claude-sender/`) start `claude -p`, die met MCP `list_send_queue` de wachtrij ophaalt, precies `draft` verstuurt (Slack via de Slack-koppeling, Teams in Nino's eigen Chrome) en met `report_reply_result` `sending` → `sent`/`failed` meldt. (Het oude verzendscript op de Mac mini, `reply-sender/`, doet hetzelfde via REST maar draait nu niet.)
 
-**Claude verstuurt nooit.** Claude kan alleen kaarten als `open` aanleveren; goedkeuren kan alleen de app (Firestore-schrijfactie van de ingelogde gebruiker), en `/send` weigert elk token dat geen ID-token is.
+**Claude keurt nooit goed.** Claude kan alleen kaarten als `open` aanleveren; goedkeuren kan alleen de app (Firestore-schrijfactie van de ingelogde gebruiker), en `/send` weigert elk token dat geen ID-token is. Claude verstuurt alleen wat Nino met het vinkje goedkeurde (Teams/Slack, via de wachter), precies zoals hij het goedkeurde.
 
 ## Statussen
 

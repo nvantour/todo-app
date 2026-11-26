@@ -9,7 +9,7 @@ import { buildReaction, enqueue, stepReaction } from './replies'
  * - mail: de app verstuurt zelf via Gmail, als antwoord in de thread (en haalt hem uit Nieuw, zoals in Mail);
  * - Google Chat: de server verstuurt met de Google-koppeling;
  * - Airtable: de server plaatst een reactie op het record (als antwoord op de reactie waar je op reageert);
- * - Teams en Slack: status "approved"; het verzendscript op de Mac mini verstuurt precies deze tekst.
+ * - Teams en Slack: status "approved"; de wachter op de laptop (claude-sender/) laat Claude precies deze tekst versturen.
  * Claude verstuurt nooit zelf: alleen deze klik zet iets in gang.
  */
 export async function approveReply(reply: Reply, draft: string): Promise<void> {
@@ -62,7 +62,7 @@ export const reopenReply = (reply: Reply) => store.updateReply(reply.id, { statu
 /**
  * Emoji op een bericht zetten. Alleen deze klik in de app zet het in gang (Claude kan het niet).
  * - Google Chat: de server zet de emoji meteen, met de Google-koppeling.
- * - Teams en Slack: het verzoek komt in de wachtrij van de kaart; Claude zet hem in de uurronde
+ * - Teams en Slack: het verzoek komt in de wachtrij van de kaart; de wachter op de laptop laat Claude hem zetten
  *   (Slack-koppeling, Teams in de Claude-browser). Claude zet alleen wat hier is aangeklikt.
  */
 export async function reactToMessage(reply: Reply, message: ReplyMessage, emoji: string): Promise<void> {

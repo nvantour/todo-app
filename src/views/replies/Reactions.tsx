@@ -46,7 +46,7 @@ export function Reactions({ reply, message, onReacted }: { reply: Reply; message
     pick(emoji)
   }
 
-  const via = reply.channel === 'gchat' ? '' : ' (Claude zet hem in de uurronde)'
+  const via = reply.channel === 'gchat' ? '' : ' (Claude zet hem zo voor je)'
 
   return (
     <div className="reactions" ref={wrap}>

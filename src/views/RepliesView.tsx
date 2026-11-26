@@ -175,7 +175,7 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
       {reacted && editable && (
         <div className="reply__askdone" role="status">
           <span>
-            {reacted} {reply.channel === 'gchat' ? 'staat erop.' : 'zet Claude in de uurronde.'} Klaar met dit gesprek?
+            {reacted} {reply.channel === 'gchat' ? 'staat erop.' : 'zet Claude zo voor je.'} Klaar met dit gesprek?
           </span>
           <button
             className="btn is-primary"
@@ -206,7 +206,7 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
               className="btn is-primary"
               disabled={!text.trim() || noAddress}
               onClick={() => void approveReply(reply, text)}
-              title={noAddress ? `Versturen kan hier niet: open het gesprek in ${CHANNEL_NAME[reply.channel]}` : SENT_BY_APP.includes(reply.channel) ? 'Nu versturen' : 'Versturen via de Mac mini'}
+              title={noAddress ? `Versturen kan hier niet: open het gesprek in ${CHANNEL_NAME[reply.channel]}` : SENT_BY_APP.includes(reply.channel) ? 'Nu versturen' : 'Versturen: Claude doet het zo voor je, via je laptop'}
             >
               <Check size={15} strokeWidth={2.5} /> Versturen
             </button>
@@ -243,7 +243,7 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
 function Status({ reply }: { reply: Reply }) {
   switch (reply.status) {
     case 'approved':
-      return <span className="reply__status">Wacht op de Mac mini…</span>
+      return <span className="reply__status">Claude verstuurt hem zo…</span>
     case 'sending':
       return <span className="reply__status">Versturen…</span>
     case 'sent':

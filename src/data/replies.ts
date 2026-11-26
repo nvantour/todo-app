@@ -19,7 +19,7 @@ export const CHANNEL_NAME: Record<ReplyChannel, string> = { mail: 'Mail', gchat:
 /** Volgorde van de kanalen op de tab. */
 export const CHANNELS: ReplyChannel[] = ['mail', 'gchat', 'teams', 'slack', 'airtable']
 
-/** Kanalen die de app (of de server) zelf verstuurt; de rest gaat via het verzendscript op de Mac mini. */
+/** Kanalen die de app (of de server) zelf verstuurt; de rest gaat via de wachter op de laptop (claude-sender/). */
 export const SENT_BY_APP: ReplyChannel[] = ['mail', 'gchat', 'airtable']
 
 const STATUSES: ReplyStatus[] = ['open', 'approved', 'sending', 'sent', 'failed', 'dismissed']
@@ -182,7 +182,7 @@ export function shownReactions(reply: Pick<Reply, 'reactionQueue'>, m: ReplyMess
   return out
 }
 
-/** Nieuw emoji-verzoek voor een bericht. Google Chat gaat meteen ("sending"), Teams en Slack wachten op de uurronde van Claude. */
+/** Nieuw emoji-verzoek voor een bericht. Google Chat gaat meteen ("sending"), Teams en Slack wachten op de wachter op de laptop. */
 export function buildReaction(reply: Pick<Reply, 'channel'>, m: ReplyMessage, emoji: string, id: string, stamp: string): ReactionRequest {
   return {
     id,

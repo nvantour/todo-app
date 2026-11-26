@@ -170,7 +170,7 @@ export interface ReplyReaction {
   mine?: boolean
 }
 
-/** queued = wacht op de Mac mini (Teams/Slack) · sending = bezig · sent = staat erop · failed = mislukt (zie error) */
+/** queued = wacht op de wachter op de laptop (Teams/Slack, claude-sender/) · sending = bezig · sent = staat erop · failed = mislukt (zie error) */
 export type ReactionStatus = 'queued' | 'sending' | 'sent' | 'failed'
 
 /** Een emoji die Nino vanuit de app op een bericht zet. Alleen de app maakt deze aan. */

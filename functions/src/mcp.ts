@@ -227,6 +227,41 @@ export function createMcpServer(service: TodoService, uid: string, schedule?: Sc
   )
 
   server.registerTool(
+    'list_send_queue',
+    {
+      title: 'List approved Teams/Slack replies',
+      description:
+        "Teams and Slack replies the USER approved with the checkmark in the app (status 'approved') that still have to be sent. Per item: id, channel, title, who, target {url, channel, ts} and draft. Send ONLY these, with EXACTLY the text in draft (no changes, no greeting, no signature), in exactly that conversation/thread. For each: first report_reply_result 'sending' (if that fails, do not send), then send (Slack: slack_send_message to target.channel, in the thread target.ts if the url has /thread/; Teams: in the user's Chrome, open target.url, type the draft in the message box and press Enter, then check it appears as your last message), then report 'sent' or 'failed' with a short Dutch reason. Read-only.",
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    () =>
+      guard(async () => {
+        const list = await service.listReplies(uid, { status: ['approved'], channel: ['teams', 'slack'] })
+        return text({ count: list.length, replies: list.map((r) => ({ id: r.id, channel: r.channel, title: r.title, who: r.who, url: r.url, target: r.target, draft: r.draft, approvedAt: r.approvedAt })) })
+      }),
+  )
+
+  server.registerTool(
+    'report_reply_result',
+    {
+      title: 'Report reply result',
+      description:
+        "Report progress on one approved reply from list_send_queue: 'sending' right before you send it (if this fails, do not send), then 'sent' once it is in the conversation, or 'failed' with a short Dutch reason. Only approved → sending → sent/failed is allowed; you can never approve a reply yourself.",
+      inputSchema: {
+        replyId: z.string().min(1).max(100),
+        status: z.enum(['sending', 'sent', 'failed']),
+        error: z.string().max(500).optional(),
+      },
+    },
+    ({ replyId, status, error }) =>
+      guard(async () => {
+        const r = await service.setReplyResult(uid, replyId, status, error)
+        return text({ id: r.id, status: r.status, error: r.error })
+      }),
+  )
+
+  server.registerTool(
     'list_reaction_queue',
     {
       title: 'List emoji queue',
