@@ -2509,6 +2509,59 @@ button.check.is-small::after {
   gap: 8px;
 }
 
+/* Gesprek in- en uitklappen; standaard ingeklapt. */
+.reply__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 12px 0 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--sidebar);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reply__toggle:hover,
+.reply__toggle:focus-visible {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+
+.reply__chev {
+  flex: none;
+  transition: transform 0.15s ease;
+}
+
+.reply__toggle.is-open .reply__chev {
+  transform: rotate(90deg);
+}
+
+.reply__togglelabel {
+  flex: none;
+  white-space: nowrap;
+}
+
+.reply__togglemeta {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-weight: 400;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.reply__toggle.is-open + .reply__thread.is-mail {
+  margin-top: 6px;
+}
+
 .reply__more {
   align-self: flex-start;
   border: 0;
@@ -2618,14 +2671,6 @@ button.check.is-small::after {
   background: var(--sidebar);
   gap: 0;
   overflow: hidden;
-}
-
-.reply__threadhead {
-  padding: 8px 16px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink-3);
-  border-bottom: 1px solid var(--line);
 }
 
 .reply__thread.is-mail .reply__msg {

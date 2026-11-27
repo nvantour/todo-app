@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ExternalLink, ListPlus, RotateCcw, X } from 'lucide-react'
+import { Check, ChevronRight, ExternalLink, ListPlus, RotateCcw, X } from 'lucide-react'
 import type { Reply, ReplyChannel } from '../model/types'
 import { store, useAppData } from '../data/store'
 import { CHANNELS, CHANNEL_NAME, SENT_BY_APP, visibleReplies } from '../data/replies'
@@ -62,6 +62,8 @@ export function RepliesView() {
 function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name: string; color: string } }) {
   const [text, setText] = useState(reply.draft)
   const [showAll, setShowAll] = useState(false)
+  // Het gesprek staat standaard ingeklapt: eerst het concept, het gesprek alleen als je het nodig hebt.
+  const [threadOpen, setThreadOpen] = useState(false)
   // Net een emoji gezet: vragen of het gesprek daarmee klaar is.
   const [reacted, setReacted] = useState<string | null>(null)
   const box = useRef<HTMLTextAreaElement>(null)
@@ -179,7 +181,12 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
 
       {reply.reason && <p className="reply__reason">{reply.reason}</p>}
 
-      {!isMail && <ChatThread reply={reply} messages={messages} more={more} onReacted={setReacted} />}
+      {!isMail && (
+        <>
+          <ThreadToggle open={threadOpen} onToggle={() => setThreadOpen((o) => !o)} count={reply.messages.length} last={reply.messages.at(-1)} isMail={false} />
+          {threadOpen && <ChatThread reply={reply} messages={messages} more={more} onReacted={setReacted} />}
+        </>
+      )}
 
       {compose}
 
@@ -229,12 +236,21 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
         ) : null}
       </footer>
 
+      {isMail && (
+        <ThreadToggle
+          open={threadOpen}
+          onToggle={() => setThreadOpen((o) => !o)}
+          count={live ? live.thread.messages.length : reply.messages.length}
+          last={live ? liveLast(live.thread.messages) : reply.messages.at(-1)}
+          isMail
+        />
+      )}
       {isMail &&
+        threadOpen &&
         (live ? (
           <LiveMailThread live={live} />
         ) : (
           <div className="reply__thread is-mail">
-            <div className="reply__threadhead">Eerdere mails</div>
             {messages.map((m, i) => (
               <div key={i} className={`reply__msg${m.mine ? ' is-mine' : ''}`}>
                 <div className="reply__meta">
@@ -247,6 +263,30 @@ function ReplyCard({ reply, projectName }: { reply: Reply; projectName?: { name:
           </div>
         ))}
     </article>
+  )
+}
+
+type LastMsg = { author: string; mine?: boolean; at: string | null }
+
+const liveLast = (msgs: { from: string; me?: boolean; date: number }[]): LastMsg | undefined => {
+  const m = msgs.at(-1)
+  return m && { author: m.from, mine: m.me, at: new Date(m.date).toISOString() }
+}
+
+/** Knop om het gesprek uit- en in te klappen, met hoeveel berichten en van wie het laatste is. */
+function ThreadToggle({ open, onToggle, count, last, isMail }: { open: boolean; onToggle: () => void; count: number; last?: LastMsg; isMail: boolean }) {
+  if (count === 0) return null
+  const noun = isMail ? (count === 1 ? 'mail' : 'mails') : count === 1 ? 'bericht' : 'berichten'
+  const lastName = last ? (last.mine ? 'jou' : last.author.replace(/\s*<.*>$/, '')) : ''
+  return (
+    <button className={`reply__toggle${open ? ' is-open' : ''}${isMail ? ' is-mail' : ''}`} onClick={onToggle} aria-expanded={open}>
+      <ChevronRight size={15} className="reply__chev" aria-hidden="true" />
+      <span className="reply__togglelabel">{open ? 'Gesprek verbergen' : 'Gesprek tonen'}</span>
+      <span className="reply__togglemeta">
+        {count} {noun}
+        {lastName && ` · laatste van ${lastName}${last?.at ? `, ${time(last.at)}` : ''}`}
+      </span>
+    </button>
   )
 }
 
